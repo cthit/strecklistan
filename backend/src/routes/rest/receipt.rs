@@ -115,7 +115,7 @@ pub async fn get_receipt(
     }
 
     let data = ReceiptTemplateData {
-        date: transaction.time.format("%Y-%m-%d").to_string(),
+        date: transaction.time.format("%Y-%m-%d %H:%M:%S").to_string(),
         products: receipt_items,
         total: transaction.amount.as_f64(),
         transaction_id,

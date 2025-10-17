@@ -71,8 +71,8 @@ ENV STATIC_FILES_MAX_AGE="0"
 
 # Install dependencies
 RUN apt-get update \
- && apt-get install -y libpq5 openssl \
- && apt-get autoremove && apt-get autoclean
+    && apt-get install -y libpq5 openssl \
+    && apt-get autoremove && apt-get autoclean
 
 RUN mkdir -p /www
 WORKDIR /
