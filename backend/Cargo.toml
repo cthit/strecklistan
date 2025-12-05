@@ -10,8 +10,8 @@ edition = "2021"
 workspace = ".."
 
 [dependencies]
-rocket = { version = "0.5.0-rc.1", features = ["json"] }
-rocket_dyn_templates = {version= "0.1.0-rc.1", features = ["handlebars"]}
+rocket = { version = "0.5.1", features = ["json"] }
+rocket_dyn_templates = { version = "0.1.0-rc.1", features = ["handlebars"] }
 duplicate = "0.2"
 diesel = { version = "1.4", features = ["postgres", "chrono", "r2d2"] }
 diesel_migrations = "1.4"
@@ -27,14 +27,14 @@ log = "0.4.14"
 futures = "0.3"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["time", "sync"] }
-lazy_static="1"
+lazy_static = "1"
 sha2 = "0.9.3"
 rmp-serde = "0.15.4"
 ron = "0.6.4"
 strum = "0.20"
 strum_macros = "0.20"
 either = "1"
-clap = "3.0.0-beta.4"
+clap = { version = "3.0.0-beta.4", features = ["derive", "env"] }
 
 
 [dependencies.strecklistan_api]

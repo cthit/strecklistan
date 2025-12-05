@@ -9,6 +9,7 @@ use crate::page::{
     Page,
 };
 use crate::util::compare_semver;
+use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::{ResourceMsg, ResourceStore};
@@ -68,8 +69,8 @@ pub fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
         .notify(subs::UrlChanged(url));
 
     orders.perform_cmd(async move {
-        let response: Result<String, FetchError> =
-            async { fetch("/api/version").await?.text().await }.await;
+        let response: Result<String, gloo_net::Error> =
+            async { Request::get("/api/version").send().await?.text().await }.await;
         match response {
             Ok(response) => Msg::FetchedApiVersion(response),
             Err(e) => Msg::ShowError {
@@ -95,7 +96,7 @@ pub fn init(url: Url, orders: &mut impl Orders<Msg>) -> Model {
 
 pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
     #[cfg(debug_assertions)]
-    log!("message", msg);
+    gloo_console::log!(format!("message {:?}", msg));
 
     let rs = &model.rs;
     match msg {
@@ -147,8 +148,8 @@ pub fn update(msg: Msg, model: &mut Model, orders: &mut impl Orders<Msg>) {
             if let Ok(api_version) = Version::parse(&response) {
                 let frontend_version = Version::parse(PKG_VERSION).unwrap();
 
-                log!("API version:", response);
-                log!("Application version:", PKG_VERSION);
+                gloo_console::log!("API version:", response.to_string());
+                gloo_console::log!("Application version:", PKG_VERSION);
 
                 if !compare_semver(frontend_version, api_version) {
                     model.error = Some((
