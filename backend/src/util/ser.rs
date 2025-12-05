@@ -111,7 +111,7 @@ impl<'a> FromRequest<'a> for SerAccept {
                 .unwrap_or_else(|| {
                     // if not, return error
                     let status = Status::NotAcceptable;
-                    Outcome::Failure((status, status.into()))
+                    Outcome::Error((status, status.into()))
                 })
         }
     }

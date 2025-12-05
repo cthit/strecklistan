@@ -8,6 +8,7 @@ use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::simple_ev;
 use crate::views::view_tillgodo;
+use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::Resources;
@@ -187,10 +188,9 @@ impl DepositionPage {
                     } else {
                         orders_local.perform_cmd(async move {
                             let result = async {
-                                Request::new("/api/transaction")
-                                    .method(Method::Post)
+                                Request::post("/api/transaction")
                                     .json(&transaction)?
-                                    .fetch()
+                                    .send()
                                     .await?
                                     .json()
                                     .await
@@ -201,7 +201,9 @@ impl DepositionPage {
                                     Some(DepositionMsg::DepositSent { transaction_id })
                                 }
                                 Err(e) => {
-                                    error!("Failed to post transaction", e);
+                                    gloo_console::error!(format!(
+                                        "Failed to post transaction: {e}"
+                                    ));
                                     Some(DepositionMsg::DepositFailed {
                                         message_title: strings::SERVER_ERROR.to_string(),
                                         message_body: Some(
@@ -304,7 +306,9 @@ impl DepositionPage {
                         }
                         NewMemberMsg::Create => {
                             if first_name.is_empty() || last_name.is_empty() {
-                                log!("Missing fields: `first_name` and `last_name` required");
+                                gloo_console::log!(
+                                    "Missing fields: `first_name` and `last_name` required"
+                                );
                             } else {
                                 let msg = (
                                     NewMember {
@@ -321,10 +325,9 @@ impl DepositionPage {
                                 );
                                 orders_local.perform_cmd(async move {
                                     let response = async {
-                                        Request::new("/api/add_member_with_book_account")
-                                            .method(Method::Post)
+                                        Request::post("/api/add_member_with_book_account")
                                             .json(&msg)?
-                                            .fetch()
+                                            .send()
                                             .await?
                                             .json()
                                             .await
@@ -334,7 +337,9 @@ impl DepositionPage {
                                     match response {
                                         Ok(data) => Some(DepositionMsg::NewMemberCreated(data)),
                                         Err(e) => {
-                                            error!("Failed to create new member", e);
+                                            gloo_console::error!(format!(
+                                                "Failed to create new member: {e}"
+                                            ));
                                             None
                                         }
                                     }
@@ -343,12 +348,14 @@ impl DepositionPage {
                         }
                     }
                 } else {
-                    error!("Tried to edit new member fields while in incorrect state.");
+                    gloo_console::error!(
+                        "Tried to edit new member fields while in incorrect state."
+                    );
                 }
             }
             DepositionMsg::NewMemberCreated((member_id, book_account_id)) => {
-                log!("New member ID: ", member_id);
-                log!("New book account ID: ", book_account_id);
+                gloo_console::log!("New member ID: ", member_id);
+                gloo_console::log!("New book account ID: ", book_account_id);
                 self.new_member = None;
                 rs.mark_as_dirty(Res::book_accounts_url(), orders);
                 rs.mark_as_dirty(Res::members_url(), orders);

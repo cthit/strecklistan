@@ -4,7 +4,7 @@ use crate::models::izettle_transaction::IZettlePostTransaction;
 use crate::util::status_json::StatusJson as SJ;
 use diesel::prelude::*;
 use rocket::http::Status;
-use rocket::response::content::Html;
+use rocket::response::content::RawHtml;
 use rocket::{get, State};
 use rocket_dyn_templates::Template;
 use serde::Serialize;
@@ -40,7 +40,7 @@ struct ReceiptMetaItem {
 pub async fn get_receipt(
     db_pool: &State<DatabasePool>,
     transaction_id: TransactionId,
-) -> Result<Html<Template>, SJ> {
+) -> Result<RawHtml<Template>, SJ> {
     let connection = db_pool.inner().get()?;
 
     // query all data associated with the transaction id
@@ -122,5 +122,5 @@ pub async fn get_receipt(
         payment_meta: payment_meta.into_iter().flatten().collect(),
     };
 
-    Ok(Html(Template::render(RECEIPT_TEMPLATE_NAME, &data)))
+    Ok(RawHtml(Template::render(RECEIPT_TEMPLATE_NAME, &data)))
 }

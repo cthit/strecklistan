@@ -5,7 +5,7 @@ use crate::notification_manager::{Notification, NotificationMessage};
 use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::simple_ev;
-use seed::fetch;
+use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::{event, NotAvailable, ResourceStore, Resources};
@@ -94,22 +94,24 @@ impl InventoryPage {
 
         let mut orders_local = orders.proxy(Msg::Inventory);
 
-        let delete_request = |uri: String, msg: InventoryMsg| async {
-            let result: fetch::Result<()> = async {
-                Request::new(uri)
-                    .method(Method::Delete)
-                    .fetch()
-                    .await?
-                    .check_status()?;
-
-                Ok(())
+        let delete_request = |uri: String, msg: InventoryMsg| async move {
+            let result: Result<_, String> = async {
+                let response = Request::delete(&uri)
+                    .send()
+                    .await
+                    .map_err(|e| e.to_string())?;
+                if response.ok() {
+                    Ok(response)
+                } else {
+                    Err(format!("Bad status code: {}", response.status()))
+                }
             }
             .await;
 
             match result {
                 Ok(_) => msg,
                 Err(e) => {
-                    error!("Failed to save inventory changes", e);
+                    gloo_console::error!(format!("Failed to save inventory changes: {}", e));
                     InventoryMsg::ServerError(format!("{:?}", e))
                 }
             }
@@ -137,22 +139,25 @@ impl InventoryPage {
                     item_ids: row.original.item_ids.clone(), // TODO: allow editing bundle items
                 };
                 orders_local.perform_cmd(async move {
-                    let result: fetch::Result<()> = async {
-                        Request::new(format!("/api/inventory/bundle/{}", id))
-                            .method(Method::Put)
-                            .json(&new_bundle)?
-                            .fetch()
-                            .await?
-                            .check_status()?;
-
-                        Ok(())
+                    let result: Result<_, String> = async {
+                        let response = Request::put(&format!("/api/inventory/bundle/{}", id))
+                            .json(&new_bundle)
+                            .map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
                     }
                     .await;
 
                     match result {
                         Ok(_) => InventoryMsg::BundlesChanged,
                         Err(e) => {
-                            error!("Failed to save inventory changes", e);
+                            gloo_console::error!(format!("Failed to save inventory changes: {e}"));
                             InventoryMsg::ServerError(format!("{:?}", e))
                         }
                     }
@@ -160,21 +165,25 @@ impl InventoryPage {
             }
             InventoryMsg::NewBundle => {
                 orders_local.perform_cmd(async move {
-                    let result: fetch::Result<()> = async {
-                        Request::new("/api/inventory/bundle".to_string())
-                            .method(Method::Post)
-                            .json(&default_bundle())?
-                            .fetch()
-                            .await?
-                            .check_status()?;
-                        Ok(())
+                    let result: Result<_, String> = async {
+                        let response = Request::post(&"/api/inventory/bundle".to_string())
+                            .json(&default_bundle())
+                            .map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
                     }
                     .await;
 
                     match result {
                         Ok(_) => InventoryMsg::BundlesChanged,
                         Err(e) => {
-                            error!("Failed to create new bundle", e);
+                            gloo_console::error!(format!("Failed to create new bundle: {e}"));
                             InventoryMsg::ServerError(format!("{:?}", e))
                         }
                     }
@@ -198,22 +207,25 @@ impl InventoryPage {
                     image_url: row.image.parsed().filter(not_empty).cloned(),
                 };
                 orders_local.perform_cmd(async move {
-                    let result: fetch::Result<()> = async {
-                        Request::new(format!("/api/inventory/item/{}", id))
-                            .method(Method::Put)
-                            .json(&new_item)?
-                            .fetch()
-                            .await?
-                            .check_status()?;
-
-                        Ok(())
+                    let result: Result<_, String> = async {
+                        let response = Request::put(&format!("/api/inventory/item/{}", id))
+                            .json(&new_item)
+                            .map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
                     }
                     .await;
 
                     match result {
                         Ok(_) => InventoryMsg::ItemsChanged,
                         Err(e) => {
-                            error!("Failed to save inventory changes", e);
+                            gloo_console::error!(format!("Failed to save inventory changes: {e}"));
                             InventoryMsg::ServerError(format!("{:?}", e))
                         }
                     }
@@ -221,21 +233,25 @@ impl InventoryPage {
             }
             InventoryMsg::NewItem => {
                 orders_local.perform_cmd(async move {
-                    let result: fetch::Result<()> = async {
-                        Request::new("/api/inventory/item".to_string())
-                            .method(Method::Post)
-                            .json(&default_item())?
-                            .fetch()
-                            .await?
-                            .check_status()?;
-                        Ok(())
+                    let result: Result<_, String> = async {
+                        let response = Request::post("/api/inventory/item")
+                            .json(&default_item())
+                            .map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
                     }
                     .await;
 
                     match result {
                         Ok(_) => InventoryMsg::ItemsChanged,
                         Err(e) => {
-                            error!("Failed to create new item", e);
+                            gloo_console::error!(format!("Failed to create new item: {e}"));
                             InventoryMsg::ServerError(format!("{:?}", e))
                         }
                     }

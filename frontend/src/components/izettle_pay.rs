@@ -1,7 +1,7 @@
 use crate::strings;
+use gloo_net::http::Request;
 use seed::app::cmds::timeout;
 use seed::prelude::*;
-use seed::*;
 use strecklistan_api::{
     izettle::IZettlePayment,
     transaction::{NewTransaction, TransactionId},
@@ -54,10 +54,9 @@ impl IZettlePay {
 
         orders.perform_cmd(async move {
             let result = async {
-                Request::new("/api/izettle/client/transaction")
-                    .method(Method::Post)
+                Request::post("/api/izettle/client/transaction")
                     .json(&transaction)?
-                    .fetch()
+                    .send()
                     .await?
                     .json()
                     .await
@@ -66,7 +65,7 @@ impl IZettlePay {
             match result {
                 Ok(reference) => Some(IZettlePayMsg::PollPendingPayment(reference)),
                 Err(e) => {
-                    error!("Failed to post transaction", e);
+                    gloo_console::error!(format!("Failed to post transaction {e}"));
                     Some(IZettlePayMsg::Error(IZettlePayErr::NetworkError {
                         reason: strings::POSTING_TRANSACTION_FAILED.to_string(),
                     }))
@@ -88,10 +87,10 @@ impl IZettlePay {
                 self.pending = None;
                 match error {
                     IZettlePayErr::PaymentFailed { reference, reason } => {
-                        error!("iZettle payment {} failed: {}", reference, reason);
+                        gloo_console::error!("iZettle payment {} failed: {}", reference, reason);
                     }
                     IZettlePayErr::NoTransaction { reference } => {
-                        error!("iZettle payment {} does not exist", reference);
+                        gloo_console::error!("iZettle payment {} does not exist", reference);
                     }
                     IZettlePayErr::NetworkError { .. } => {}
                 }
@@ -101,9 +100,8 @@ impl IZettlePay {
 
                 orders.perform_cmd(async move {
                     let result = async {
-                        Request::new(&format!("/api/izettle/client/poll/{}", reference))
-                            .method(Method::Get)
-                            .fetch()
+                        Request::get(&format!("/api/izettle/client/poll/{}", reference))
+                            .send()
                             .await?
                             .json()
                             .await
@@ -130,7 +128,7 @@ impl IZettlePay {
                             }))
                         }
                         Err(e) => {
-                            error!("Failed to poll for payment", e);
+                            gloo_console::error!(format!("Failed to poll for payment: {e}"));
                             Some(IZettlePayMsg::Error(IZettlePayErr::NetworkError {
                                 reason: strings::POLLING_TRANSACTION_FAILED.to_string(),
                             }))
