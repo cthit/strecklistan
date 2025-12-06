@@ -4,12 +4,12 @@ use crate::models::izettle_transaction::{
     IZettlePostTransaction, TRANSACTION_CANCELLED, TRANSACTION_FAILED, TRANSACTION_IN_PROGRESS,
     TRANSACTION_PAID,
 };
-use crate::util::ser::{Ser, SerAccept};
 use crate::util::StatusJson;
+use crate::util::ser::{Ser, SerAccept};
 use diesel::{ExpressionMethods, QueryDsl};
 use log::error;
 use rocket::http::Status;
-use rocket::{get, State};
+use rocket::{State, get};
 use serde::Serialize;
 use strecklistan_api::izettle::IZettlePayment;
 
@@ -24,7 +24,7 @@ pub async fn poll_for_izettle(
     accept: SerAccept,
     izettle_transaction_id: i32,
 ) -> Result<Ser<IZettlePayment>, StatusJson> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let post_izettle_transaction: Result<IZettlePostTransaction, diesel::result::Error> = {
         use crate::schema::tables::izettle_post_transaction::dsl::{
@@ -33,7 +33,7 @@ pub async fn poll_for_izettle(
 
         izettle_post_transaction
             .filter(iz_id.eq(izettle_transaction_id))
-            .first(&connection)
+            .first(&mut connection)
     };
 
     match post_izettle_transaction {

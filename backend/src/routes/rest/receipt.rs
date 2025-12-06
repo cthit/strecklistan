@@ -1,11 +1,11 @@
-use crate::database::transaction::{objectify_transations, query_transaction, TransactionFilter};
 use crate::database::DatabasePool;
+use crate::database::transaction::{TransactionFilter, objectify_transations, query_transaction};
 use crate::models::izettle_transaction::IZettlePostTransaction;
 use crate::util::status_json::StatusJson as SJ;
 use diesel::prelude::*;
 use rocket::http::Status;
 use rocket::response::content::RawHtml;
-use rocket::{get, State};
+use rocket::{State, get};
 use rocket_dyn_templates::Template;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -41,12 +41,12 @@ pub async fn get_receipt(
     db_pool: &State<DatabasePool>,
     transaction_id: TransactionId,
 ) -> Result<RawHtml<Template>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     // query all data associated with the transaction id
-    let (transaction, izettle, inventory) = connection.transaction::<_, SJ, _>(|| {
+    let (transaction, izettle, inventory) = connection.transaction::<_, SJ, _>(|connection| {
         let transaction = query_transaction(
-            &connection,
+            connection,
             TransactionFilter {
                 id: Some(transaction_id),
                 ..Default::default()
@@ -61,7 +61,7 @@ pub async fn get_receipt(
             use crate::schema::tables::izettle_post_transaction::dsl;
             dsl::izettle_post_transaction
                 .filter(dsl::transaction_id.eq(transaction_id))
-                .first(&connection)
+                .first(connection)
                 .optional()?
         };
 
@@ -69,7 +69,7 @@ pub async fn get_receipt(
         let inventory: HashMap<InventoryItemId, InventoryItem> = {
             use crate::schema::tables::inventory::dsl;
             dsl::inventory
-                .load(&connection)?
+                .load(connection)?
                 .into_iter()
                 .map(|item: InventoryItem| (item.id, item))
                 .collect()

@@ -3,7 +3,7 @@ use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
 use diesel::prelude::*;
 use rocket::serde::json::Json;
-use rocket::{get, post, State};
+use rocket::{State, get, post};
 use std::collections::HashMap;
 use strecklistan_api::book_account::{BookAccountId, BookAccountType};
 use strecklistan_api::member::{Member, MemberId, NewMember};
@@ -13,12 +13,12 @@ pub fn get_members(
     db_pool: &State<DatabasePool>,
     accept: SerAccept,
 ) -> Result<Ser<HashMap<MemberId, Member>>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
     use crate::schema::tables::members::dsl::*;
 
     Ok(accept.ser(
         members
-            .load(&connection)?
+            .load(&mut connection)?
             .into_iter()
             .map(|member: Member| (member.id, member))
             .collect(),
@@ -31,11 +31,11 @@ pub fn add_member_with_book_account(
     accept: SerAccept,
     data: Json<(NewMember, String)>,
 ) -> Result<Ser<(MemberId, BookAccountId)>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let (new_member, account_name) = data.into_inner();
 
-    connection.transaction::<_, SJ, _>(|| {
+    connection.transaction::<_, SJ, _>(|connection| {
         let member_id = {
             use crate::schema::tables::members::dsl::*;
 
@@ -46,7 +46,7 @@ pub fn add_member_with_book_account(
                     nickname.eq(&new_member.nickname),
                 ))
                 .returning(id)
-                .get_result(&connection)?
+                .get_result(connection)?
         };
 
         let acc_id = {
@@ -59,7 +59,7 @@ pub fn add_member_with_book_account(
                     creditor.eq(&Some(member_id)),
                 ))
                 .returning(id)
-                .get_result(&connection)?
+                .get_result(connection)?
         };
 
         Ok(accept.ser((member_id, acc_id)))
