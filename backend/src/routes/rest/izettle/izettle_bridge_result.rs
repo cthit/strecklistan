@@ -15,7 +15,7 @@ use itertools::Itertools;
 use log::info;
 use rocket::http::Status;
 use rocket::serde::json::Json;
-use rocket::{post, State};
+use rocket::{State, post};
 use serde::{Deserialize, Serialize};
 use std::iter;
 
@@ -50,9 +50,9 @@ pub async fn complete_izettle_transaction(
     payment_response: Json<PaymentResponse>,
     db_pool: &State<DatabasePool>,
 ) -> Result<SJ, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
-    connection.transaction::<_, SJ, _>(|| {
+    connection.transaction::<_, SJ, _>(|connection| {
         let joined: Vec<(
             IZettleTransaction,
             Option<relational::TransactionBundle>,
@@ -71,12 +71,12 @@ pub async fn complete_izettle_transaction(
                 .left_join(izettle_transaction_bundle.on(bundle_trans_id.eq(transaction_id)))
                 .left_join(izettle_transaction_item.on(item_bundle_id.eq(bundle_id)))
                 .filter(transaction_id.eq(reference))
-                .load(&connection)?
+                .load(connection)?
         };
 
         let grouped = joined
             .into_iter()
-            .group_by(|(transaction, _, _)| transaction.id);
+            .chunk_by(|(transaction, _, _)| transaction.id);
 
         let (izettle_transaction_id, mut transaction_rows) = match grouped.into_iter().next() {
             Some(group) => group,
@@ -95,7 +95,7 @@ pub async fn complete_izettle_transaction(
             };
             diesel::delete(izettle_transaction)
                 .filter(iz_id.eq(izettle_transaction_id))
-                .execute(&connection)?;
+                .execute(connection)?;
         }
 
         match payment_response.into_inner() {
@@ -122,14 +122,14 @@ pub async fn complete_izettle_transaction(
                     diesel::insert_into(transactions)
                         .values(new_transaction)
                         .returning(id)
-                        .get_result(&connection)?
+                        .get_result(connection)?
                 };
 
                 // Iterate over all the joined rows for each *bundle* in the transaction
                 let bundles = iter::once((bundle0, item0))
                     .chain(transaction_rows.map(|(_, bundle, item)| (bundle, item)))
                     .filter_map(|(bundle, item)| bundle.map(|bundle| (bundle, item)))
-                    .group_by(|(bundle, _)| bundle.id);
+                    .chunk_by(|(bundle, _)| bundle.id);
                 for (_bundle_id, mut bundle_rows) in bundles.into_iter() {
                     let (bundle, item0) = bundle_rows.next().unwrap();
 
@@ -146,7 +146,7 @@ pub async fn complete_izettle_transaction(
                         diesel::insert_into(transaction_bundles)
                             .values(new_bundle)
                             .returning(id)
-                            .get_result(&connection)?
+                            .get_result(connection)?
                     };
 
                     // Iterate over all the joined rows for each *item* in the bundle
@@ -163,7 +163,7 @@ pub async fn complete_izettle_transaction(
                         use crate::schema::tables::transaction_items::dsl::*;
                         diesel::insert_into(transaction_items)
                             .values(new_item)
-                            .execute(&connection)?;
+                            .execute(connection)?;
                     }
                 }
 
@@ -179,7 +179,7 @@ pub async fn complete_izettle_transaction(
                         card_issuing_bank,
                         masked_pan,
                     },
-                    &connection,
+                    connection,
                 )?;
 
                 Ok(SJ::new(Status::Ok, "Transcation completed"))
@@ -195,7 +195,7 @@ pub async fn complete_izettle_transaction(
                         error: Some(reason),
                         ..Default::default()
                     },
-                    &connection,
+                    connection,
                 )?;
 
                 Ok(SJ::new(Status::Ok, "Transcation cancelled with failure"))
@@ -208,7 +208,7 @@ pub async fn complete_izettle_transaction(
                         status: TRANSACTION_CANCELLED.to_string(),
                         ..Default::default()
                     },
-                    &connection,
+                    connection,
                 )?;
 
                 Ok(SJ::new(Status::Ok, "Transaction cancelled"))
@@ -219,7 +219,7 @@ pub async fn complete_izettle_transaction(
 
 fn update_izettle_post_transaction(
     transaction: IZettlePostTransaction,
-    connection: &PooledConnection<ConnectionManager<PgConnection>>,
+    connection: &mut PooledConnection<ConnectionManager<PgConnection>>,
 ) -> Result<(), diesel::result::Error> {
     use crate::schema::tables::izettle_post_transaction::dsl::{
         card_issuing_bank as bank, card_payment_entry_mode as payment_mode, card_type as c_type,

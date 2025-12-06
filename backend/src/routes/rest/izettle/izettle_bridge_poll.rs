@@ -3,11 +3,11 @@ use crate::diesel::RunQueryDsl;
 use crate::models::izettle_transaction::IZettleTransactionPartial;
 use crate::routes::rest::izettle::IZettleNotifier;
 use crate::schema::tables::izettle_transaction::dsl::izettle_transaction;
-use crate::util::ser::{Ser, SerAccept};
 use crate::util::StatusJson;
+use crate::util::ser::{Ser, SerAccept};
 use diesel::result::Error;
 use diesel::{ExpressionMethods, QueryDsl, QueryResult};
-use rocket::{get, State};
+use rocket::{State, get};
 use serde::Serialize;
 use std::time::Duration;
 
@@ -29,28 +29,27 @@ pub async fn poll_for_transaction(
     timeout: Option<u64>,
     accept: SerAccept,
 ) -> Result<Ser<BridgePollResult>, StatusJson> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let notification = timeout.map(|millis| notifier.wait(Duration::from_millis(millis)));
 
-    let query_transaction = move || -> QueryResult<IZettleTransactionPartial> {
+    let mut query_transaction = move || -> QueryResult<IZettleTransactionPartial> {
         use crate::schema::tables::izettle_transaction::dsl::{amount, id, time};
 
         izettle_transaction
             .order_by(time.asc())
             .select((id, amount))
-            .first(&connection)
+            .first(&mut connection)
     };
 
     let mut transaction_result = query_transaction();
 
     // if there was no pending transaction, query again if we were notified within the timeout
-    if let Err(Error::NotFound) = &transaction_result {
-        if let Some(notification) = notification {
-            if notification.await {
-                transaction_result = query_transaction();
-            }
-        }
+    if let Err(Error::NotFound) = &transaction_result
+        && let Some(notification) = notification
+        && notification.await
+    {
+        transaction_result = query_transaction();
     }
 
     if let Err(Error::NotFound) = transaction_result {

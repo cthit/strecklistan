@@ -1,10 +1,10 @@
 use diesel::result::Error as DieselError;
-use duplicate::duplicate;
+use duplicate::duplicate_item;
 use log::{info, warn};
+use rocket::Request;
 use rocket::http::Status;
 use rocket::response::{Responder, Response};
-use rocket::serde::json::{json, Json};
-use rocket::Request; // macro
+use rocket::serde::json::{Json, json}; // macro
 
 /// An error message which can be serialized as JSON.
 ///
@@ -59,7 +59,7 @@ impl<'r> Responder<'r, 'static> for StatusJson {
     }
 }
 
-#[duplicate(
+#[duplicate_item(
   status_code                     T;
   [ Status::BadRequest ]          [ r2d2::Error ];
   [ Status::InternalServerError ] [ diesel::ConnectionError ];

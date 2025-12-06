@@ -12,7 +12,7 @@ use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::Resources;
-use seed_fetcher::{event, NotAvailable, ResourceStore};
+use seed_fetcher::{NotAvailable, ResourceStore, event};
 use std::collections::HashMap;
 use strecklistan_api::{
     book_account::{BookAccount, BookAccountId, MasterAccounts},
@@ -48,6 +48,7 @@ pub enum DepositionMsg {
 
     Deposit,
     DepositSent {
+        #[allow(dead_code)] // not currently used
         transaction_id: TransactionId,
     },
     DepositFailed {
@@ -63,6 +64,7 @@ pub enum DepositionMsg {
 
     // -- Resource Messages -- //
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 }
 

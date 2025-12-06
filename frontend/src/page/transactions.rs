@@ -2,14 +2,14 @@ use crate::app::Msg;
 use crate::components::filter_menu::{FilterMenu, FilterMenuMsg};
 use crate::generated::css_classes::C;
 use crate::page::loading::Loading;
-use crate::util::export::{download_file, make_csv_transaction_list, CSVStyleTransaction};
+use crate::util::export::{CSVStyleTransaction, download_file, make_csv_transaction_list};
 use crate::util::simple_ev;
 use chrono::{FixedOffset, Local};
 use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::Resources;
-use seed_fetcher::{event, NotAvailable, ResourceStore};
+use seed_fetcher::{NotAvailable, ResourceStore, event};
 use std::collections::HashMap;
 use strecklistan_api::{
     book_account::{BookAccount, BookAccountId, MasterAccounts},
@@ -38,6 +38,7 @@ pub enum TransactionsMsg {
     ShowReceipt(TransactionId),
 
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 }
 

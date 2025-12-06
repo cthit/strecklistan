@@ -1,8 +1,8 @@
 use crate::schema::tables::events;
 use crate::util::StatusJson;
 use chrono::{DateTime, Utc};
-use rocket::http::Status;
 use rocket::FromForm;
+use rocket::http::Status;
 use serde::{Deserialize, Serialize};
 
 #[derive(FromForm)]
@@ -49,7 +49,7 @@ pub struct Event {
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug)]
-#[table_name = "events"]
+#[diesel(table_name = events)]
 pub struct NewEvent {
     pub title: String,
     pub background: String,

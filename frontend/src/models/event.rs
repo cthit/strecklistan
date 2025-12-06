@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)] // currently not used
 pub struct Event {
     pub id: i32,
     pub title: String,

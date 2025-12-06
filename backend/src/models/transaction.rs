@@ -8,7 +8,7 @@ pub mod relational {
     use serde::{Deserialize, Serialize};
 
     #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-    #[table_name = "transactions"]
+    #[diesel(table_name = transactions)]
     pub struct NewTransaction {
         pub description: Option<String>,
         pub time: Option<DateTime<Utc>>,
@@ -29,7 +29,7 @@ pub mod relational {
     }
 
     #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-    #[table_name = "transaction_bundles"]
+    #[diesel(table_name = transaction_bundles)]
     pub struct NewTransactionBundle {
         pub transaction_id: i32,
         pub description: Option<String>,
@@ -47,7 +47,7 @@ pub mod relational {
     }
 
     #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-    #[table_name = "transaction_items"]
+    #[diesel(table_name = transaction_items)]
     pub struct NewTransactionItem {
         pub bundle_id: i32,
         pub item_id: i32,

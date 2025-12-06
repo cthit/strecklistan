@@ -9,7 +9,7 @@ use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
 use diesel::{Connection, RunQueryDsl};
 use rocket::serde::json::Json;
-use rocket::{post, State};
+use rocket::{State, post};
 
 #[post("/izettle/client/transaction", data = "<transaction>")]
 pub async fn begin_izettle_transaction(
@@ -18,7 +18,7 @@ pub async fn begin_izettle_transaction(
     accept: SerAccept,
     transaction: Json<object::NewTransaction>,
 ) -> Result<Ser<i32>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let object::NewTransaction {
         description,
@@ -36,13 +36,13 @@ pub async fn begin_izettle_transaction(
         amount: amount.into(),
     };
 
-    connection.transaction::<_, SJ, _>(|| {
+    connection.transaction::<_, SJ, _>(|connection| {
         let transactions_id = {
             use crate::schema::tables::izettle_transaction::dsl::*;
             diesel::insert_into(izettle_transaction)
                 .values(transaction)
                 .returning(id)
-                .get_result(&connection)?
+                .get_result(connection)?
         };
 
         for bundle in bundles.into_iter() {
@@ -58,13 +58,13 @@ pub async fn begin_izettle_transaction(
                 diesel::insert_into(izettle_transaction_bundle)
                     .values(&new_bundle)
                     .returning(id)
-                    .get_result(&connection)?
+                    .get_result(connection)?
             };
 
             let item_ids: Vec<_> = bundle
                 .item_ids
                 .into_iter()
-                .flat_map(|(item_id, count)| std::iter::repeat(item_id).take(count as usize))
+                .flat_map(|(item_id, count)| std::iter::repeat_n(item_id, count as usize))
                 .map(|item_id| NewIZettleTransactionItem { bundle_id, item_id })
                 .collect();
 
@@ -72,7 +72,7 @@ pub async fn begin_izettle_transaction(
                 use crate::schema::tables::izettle_transaction_item::dsl::*;
                 diesel::insert_into(izettle_transaction_item)
                     .values(&item_ids)
-                    .execute(&connection)?;
+                    .execute(connection)?;
             }
         }
 
@@ -91,7 +91,7 @@ pub async fn begin_izettle_transaction(
             use crate::schema::tables::izettle_post_transaction::dsl::*;
             diesel::insert_into(izettle_post_transaction)
                 .values(post_tran)
-                .execute(&connection)?;
+                .execute(connection)?;
         }
 
         notifier.notify();

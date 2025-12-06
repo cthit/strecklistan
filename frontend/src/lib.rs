@@ -12,7 +12,7 @@ mod strings;
 mod util;
 mod views;
 
-use seed::{prelude::*, App};
+use seed::{App, prelude::*};
 
 #[wasm_bindgen(start)]
 pub fn start() {

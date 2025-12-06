@@ -1,4 +1,4 @@
-FROM rust:1.91.1 as build_stage
+FROM rust:1.91.1 AS build_stage
 
 RUN apt-get update &&\
     apt-get install -y postgresql-client &&\
