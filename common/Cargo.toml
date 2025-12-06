@@ -13,8 +13,8 @@ diesel = { workspace = true, optional = true }
 diesel_migrations = { workspace = true, optional = true }
 diesel-derive-enum = { workspace = true, optional = true }
 diesel_derives = { workspace = true, optional = true }
+chrono.workspace = true
 
-chrono = "0.4"
 getset = "0.1"
 regex = "1"
 lazy_static = "1"

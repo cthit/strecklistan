@@ -2,7 +2,9 @@ use crate::app::Msg;
 use crate::generated::css_classes::C;
 use crate::page::loading::Loading;
 use crate::util::{DATE_INPUT_FMT, simple_ev};
-use chrono::{DateTime, Datelike, Duration, IsoWeek, NaiveDate, Utc, Weekday};
+use chrono::{
+    DateTime, Datelike, Duration, IsoWeek, NaiveDate, NaiveDateTime, TimeZone, Utc, Weekday,
+};
 use seed::app::cmds::timeout;
 use seed::{prelude::*, *};
 use seed_fetcher::Resources;
@@ -90,12 +92,12 @@ impl AnalyticsPage {
             }
             AnalyticsMsg::SetStartDate(input) => {
                 if let Ok(date) = NaiveDate::parse_from_str(&input, DATE_INPUT_FMT) {
-                    self.start_date = DateTime::from_utc(date.and_hms(0, 0, 0), Utc);
+                    self.start_date = Utc.from_utc_datetime(&first_time_of_day(date));
                 }
             }
             AnalyticsMsg::SetEndDate(input) => {
                 if let Ok(date) = NaiveDate::parse_from_str(&input, DATE_INPUT_FMT) {
-                    self.end_date = DateTime::from_utc(date.and_hms(0, 0, 0), Utc);
+                    self.end_date = Utc.from_utc_datetime(&first_time_of_day(date));
                 }
             }
 
@@ -188,9 +190,16 @@ impl AnalyticsPage {
     }
 }
 
+fn first_time_of_day(date: NaiveDate) -> NaiveDateTime {
+    date.and_hms_opt(0, 0, 0)
+        .expect("00:00:00 is always valid time of the day")
+}
+
 fn week_date(week: IsoWeek) -> DateTime<Utc> {
-    let naive = NaiveDate::from_isoywd(week.year(), week.week(), Weekday::Mon).and_hms(0, 0, 0);
-    DateTime::from_utc(naive, Utc)
+    let naive = NaiveDate::from_isoywd_opt(week.year(), week.week(), Weekday::Mon)
+        .map(first_time_of_day)
+        .expect("week exists");
+    Utc.from_utc_datetime(&naive)
 }
 
 fn calculate_inventory_by_week(
