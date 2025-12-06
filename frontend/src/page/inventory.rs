@@ -8,7 +8,7 @@ use crate::util::simple_ev;
 use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
-use seed_fetcher::{event, NotAvailable, ResourceStore, Resources};
+use seed_fetcher::{NotAvailable, ResourceStore, Resources, event};
 use std::collections::{BTreeMap, HashMap};
 use strecklistan_api::{
     currency::Currency,
@@ -20,7 +20,9 @@ use strecklistan_api::{
 
 #[derive(Clone, Debug)]
 pub enum InventoryMsg {
+    #[allow(dead_code)] // not currently used
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 
     DeleteBundle(InventoryBundleId),

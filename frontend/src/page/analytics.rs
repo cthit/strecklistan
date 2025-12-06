@@ -1,12 +1,12 @@
 use crate::app::Msg;
 use crate::generated::css_classes::C;
 use crate::page::loading::Loading;
-use crate::util::{simple_ev, DATE_INPUT_FMT};
+use crate::util::{DATE_INPUT_FMT, simple_ev};
 use chrono::{DateTime, Datelike, Duration, IsoWeek, NaiveDate, Utc, Weekday};
 use seed::app::cmds::timeout;
 use seed::{prelude::*, *};
 use seed_fetcher::Resources;
-use seed_fetcher::{event, NotAvailable, ResourceStore};
+use seed_fetcher::{NotAvailable, ResourceStore, event};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use strecklistan_api::{
@@ -22,7 +22,9 @@ pub enum AnalyticsMsg {
     SetEndDate(String),
 
     // -- Resource Events -- //
+    #[allow(dead_code)] // not currently used
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 }
 
