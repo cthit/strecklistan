@@ -64,7 +64,7 @@ pub async fn begin_izettle_transaction(
             let item_ids: Vec<_> = bundle
                 .item_ids
                 .into_iter()
-                .flat_map(|(item_id, count)| std::iter::repeat(item_id).take(count as usize))
+                .flat_map(|(item_id, count)| std::iter::repeat_n(item_id, count as usize))
                 .map(|item_id| NewIZettleTransactionItem { bundle_id, item_id })
                 .collect();
 

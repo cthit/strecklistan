@@ -1,4 +1,4 @@
-use crate::util::{ord::OrdL, StatusJson};
+use crate::util::{StatusJson, ord::OrdL};
 use log::error;
 use rocket::http::{ContentType, MediaType, Status};
 use rocket::outcome::Outcome;
@@ -130,7 +130,7 @@ impl Encoding {
         Ok(match self {
             Encoding::Json => serde_json::to_vec(value)?,
             Encoding::Ron => {
-                use ron::ser::{to_string_pretty, PrettyConfig};
+                use ron::ser::{PrettyConfig, to_string_pretty};
                 to_string_pretty(value, PrettyConfig::default()).map(|s| s.into_bytes())?
             }
             Encoding::MsgPack => rmp_serde::to_vec(value)?,

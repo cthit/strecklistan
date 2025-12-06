@@ -1,10 +1,10 @@
+use rocket::Request;
 use rocket::fs::NamedFile;
 use rocket::http::{
-    hyper::header::{CACHE_CONTROL, ETAG},
     Header, Status,
+    hyper::header::{CACHE_CONTROL, ETAG},
 };
 use rocket::response::{Responder, Response};
-use rocket::Request;
 use std::io;
 use std::path::Path;
 
@@ -22,7 +22,7 @@ impl CachedFile {
         cache_control: String,
     ) -> io::Result<CachedFile> {
         let path = path.as_ref();
-        let etag = generate_etag(&path);
+        let etag = generate_etag(path);
         let file = match req_etag {
             Some(req_etag) if req_etag == etag => None,
             _ => Some(NamedFile::open(path).await?),

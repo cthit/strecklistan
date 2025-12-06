@@ -11,7 +11,7 @@ use strecklistan_api::{
     transaction::{Transaction, TransactionId},
 };
 use wasm_bindgen::JsCast;
-use web_sys::{window, Element, HtmlElement};
+use web_sys::{Element, HtmlElement, window};
 
 pub fn csv_writer<W: Write>(writer: W) -> csv::Writer<W> {
     csv::WriterBuilder::new()

@@ -1,12 +1,12 @@
 use crate::generated::css_classes::C;
 use crate::notification_manager::{NotificationManager, NotificationMessage};
 use crate::page::{
+    Page,
     analytics::{AnalyticsMsg, AnalyticsPage},
     deposit::{DepositionMsg, DepositionPage},
     inventory::{InventoryMsg, InventoryPage},
     store::{StoreMsg, StorePage},
     transactions::{TransactionsMsg, TransactionsPage},
-    Page,
 };
 use crate::util::compare_semver;
 use gloo_net::http::Request;

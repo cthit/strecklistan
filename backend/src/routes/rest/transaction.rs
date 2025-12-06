@@ -64,7 +64,7 @@ pub fn post_transaction(
             let item_ids: Vec<_> = bundle
                 .item_ids
                 .into_iter()
-                .flat_map(|(item_id, count)| std::iter::repeat(item_id).take(count as usize))
+                .flat_map(|(item_id, count)| std::iter::repeat_n(item_id, count as usize))
                 .map(|item_id| relational::NewTransactionItem { bundle_id, item_id })
                 .collect();
 

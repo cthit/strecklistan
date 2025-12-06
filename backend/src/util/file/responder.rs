@@ -2,8 +2,8 @@ use crate::util::CachedFile;
 use either::Either;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::fs::NamedFile;
-use rocket::http::hyper::header::IF_NONE_MATCH;
 use rocket::http::Status;
+use rocket::http::hyper::header::IF_NONE_MATCH;
 use rocket::response::Responder;
 use rocket::{Request, Response};
 use std::path::{Path, PathBuf};
@@ -46,7 +46,7 @@ impl Fairing for FileResponder {
             .path()
             .segments()
             // make sure path is bullshit-free
-            .map(|s| (!s.contains('/') && s != ".." || s != ".").then(|| s))
+            .map(|s| (!s.contains('/') && s != ".." || s != ".").then_some(s))
             .collect();
         let path = match path {
             Some(path) => path,

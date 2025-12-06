@@ -1,7 +1,7 @@
 use crate::generated::css_classes::C;
 use crate::util::simple_ev;
 use seed::prelude::*;
-use seed::{attrs, div, empty, input, Attrs, C};
+use seed::{Attrs, C, attrs, div, empty, input};
 use std::str::FromStr;
 
 #[derive(Clone, Debug)]

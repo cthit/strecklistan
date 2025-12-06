@@ -45,12 +45,11 @@ pub async fn poll_for_transaction(
     let mut transaction_result = query_transaction();
 
     // if there was no pending transaction, query again if we were notified within the timeout
-    if let Err(Error::NotFound) = &transaction_result {
-        if let Some(notification) = notification {
-            if notification.await {
-                transaction_result = query_transaction();
-            }
-        }
+    if let Err(Error::NotFound) = &transaction_result
+        && let Some(notification) = notification
+        && notification.await
+    {
+        transaction_result = query_transaction();
     }
 
     if let Err(Error::NotFound) = transaction_result {

@@ -168,7 +168,7 @@ impl InventoryPage {
             InventoryMsg::NewBundle => {
                 orders_local.perform_cmd(async move {
                     let result: Result<_, String> = async {
-                        let response = Request::post(&"/api/inventory/bundle".to_string())
+                        let response = Request::post("/api/inventory/bundle")
                             .json(&default_bundle())
                             .map_err(|e| e.to_string())?
                             .send()
