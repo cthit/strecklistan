@@ -76,7 +76,7 @@ pub async fn complete_izettle_transaction(
 
         let grouped = joined
             .into_iter()
-            .group_by(|(transaction, _, _)| transaction.id);
+            .chunk_by(|(transaction, _, _)| transaction.id);
 
         let (izettle_transaction_id, mut transaction_rows) = match grouped.into_iter().next() {
             Some(group) => group,
@@ -129,7 +129,7 @@ pub async fn complete_izettle_transaction(
                 let bundles = iter::once((bundle0, item0))
                     .chain(transaction_rows.map(|(_, bundle, item)| (bundle, item)))
                     .filter_map(|(bundle, item)| bundle.map(|bundle| (bundle, item)))
-                    .group_by(|(bundle, _)| bundle.id);
+                    .chunk_by(|(bundle, _)| bundle.id);
                 for (_bundle_id, mut bundle_rows) in bundles.into_iter() {
                     let (bundle, item0) = bundle_rows.next().unwrap();
 

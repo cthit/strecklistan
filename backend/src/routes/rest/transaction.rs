@@ -113,7 +113,7 @@ pub fn get_transactions(
 
     let transactions: Vec<object::Transaction> = joined
         .into_iter()
-        .group_by(|(tr, _, _)| tr.id)
+        .chunk_by(|(tr, _, _)| tr.id)
         .into_iter()
         .map(|(_, mut xs)| {
             let (t0, b0, i0) = xs.next().unwrap();
@@ -128,7 +128,7 @@ pub fn get_transactions(
                 bundles: std::iter::once(b0.map(|b0| (b0, i0)))
                     .chain(xs.map(|(_, bx, ix)| bx.map(|bx| (bx, ix))))
                     .flatten()
-                    .group_by(|(bx, _)| bx.id)
+                    .chunk_by(|(bx, _)| bx.id)
                     .into_iter()
                     .map(|(_, mut xs)| {
                         let (bundle, i0) = xs.next().unwrap();

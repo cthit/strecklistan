@@ -144,7 +144,7 @@ pub fn get_bundles(
 
     let bundles = joined
         .into_iter()
-        .group_by(|(bundle, _)| bundle.id)
+        .chunk_by(|(bundle, _)| bundle.id)
         .into_iter()
         .map(|(_, mut elements)| {
             let (bundle, item) = elements.next().unwrap();
