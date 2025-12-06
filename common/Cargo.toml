@@ -5,7 +5,7 @@ authors = ["Joakim Hulthe <joakim@hulthe.net>"]
 license = "MPL-2.0"
 description = "Public API types and functions of strecklistan: a simple web-shop"
 repository = "https://github.com/hulthe/strecklistan"
-edition = "2021"
+edition = "2024"
 workspace = ".."
 
 [dependencies]
