@@ -20,7 +20,7 @@ fn build_search_highlight_spans(
     string
         .chars()
         .enumerate()
-        .group_by(|(i, _)| {
+        .chunk_by(|(i, _)| {
             // check if the next highlighted character is this one
             let highlighted = highlights.peek() == Some(i);
             if highlighted {

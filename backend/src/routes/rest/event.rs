@@ -1,9 +1,9 @@
-use crate::database::event::{get_event_ws, get_event_ws_range};
 use crate::database::DatabasePool;
+use crate::database::event::{get_event_ws, get_event_ws_range};
 use crate::models::event::EventWithSignups as EventWS;
 use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
-use rocket::{get, State};
+use rocket::{State, get};
 
 #[get("/event/<id>")]
 pub fn get_event(

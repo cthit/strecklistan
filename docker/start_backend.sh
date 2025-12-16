@@ -1,12 +1,5 @@
 #!/usr/bin/env sh
 
-printf "Waiting for database \"db:5432\"..."
-while ! nc -z db 5432; do
-	sleep 1
-	printf "."
-done
-echo
-
 set -x
 
 diesel setup

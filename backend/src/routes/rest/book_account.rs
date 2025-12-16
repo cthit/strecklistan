@@ -5,7 +5,7 @@ use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
 use diesel::prelude::*;
 use rocket::serde::json::Json;
-use rocket::{get, post, State};
+use rocket::{State, get, post};
 use std::collections::HashMap;
 use strecklistan_api::book_account::{
     BookAccount, BookAccountId, BookAccountType, MasterAccounts, NewBookAccount,
@@ -16,17 +16,15 @@ pub fn get_accounts(
     db_pool: &State<DatabasePool>,
     accept: SerAccept,
 ) -> Result<Ser<HashMap<BookAccountId, BookAccount>>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let (transactions, accounts) = connection
-        .transaction::<(Vec<Transaction>, Vec<relational::BookAccount>), SJ, _>(|| {
+        .transaction::<(Vec<Transaction>, Vec<relational::BookAccount>), SJ, _>(|connection| {
             use crate::schema::tables::book_accounts::dsl::book_accounts;
             use crate::schema::tables::transactions::dsl::{deleted_at, transactions};
             Ok((
-                transactions
-                    .filter(deleted_at.is_null())
-                    .load(&connection)?,
-                book_accounts.load(&connection)?,
+                transactions.filter(deleted_at.is_null()).load(connection)?,
+                book_accounts.load(connection)?,
             ))
         })?;
 
@@ -54,7 +52,7 @@ pub fn add_account(
     accept: SerAccept,
     account: Json<NewBookAccount>,
 ) -> Result<Ser<i32>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     use crate::schema::tables::book_accounts::dsl::*;
 
@@ -66,7 +64,7 @@ pub fn add_account(
                 creditor.eq(&account.creditor),
             ))
             .returning(id)
-            .get_result(&connection)?,
+            .get_result(&mut connection)?,
     ))
 }
 
@@ -75,7 +73,7 @@ pub fn get_master_accounts(
     db_pool: &State<DatabasePool>,
     accept: SerAccept,
 ) -> Result<Ser<MasterAccounts>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
     use crate::schema::tables::book_accounts::dsl::*;
 
     // TODO: Get the values for the master accounts from some configuration.
@@ -84,7 +82,7 @@ pub fn get_master_accounts(
     let sales_account_name = "Försäljning";
     let purchases_account_name = "Inköp";
 
-    connection.transaction::<_, SJ, _>(|| {
+    connection.transaction::<_, SJ, _>(|connection| {
         // Make sure the accounts exist in the database
         diesel::insert_into(book_accounts)
             .values((
@@ -92,46 +90,46 @@ pub fn get_master_accounts(
                 account_type.eq(BookAccountType::Assets),
             ))
             .on_conflict_do_nothing()
-            .execute(&connection)?;
+            .execute(connection)?;
         diesel::insert_into(book_accounts)
             .values((
                 name.eq(cash_account_name),
                 account_type.eq(BookAccountType::Assets),
             ))
             .on_conflict_do_nothing()
-            .execute(&connection)?;
+            .execute(connection)?;
         diesel::insert_into(book_accounts)
             .values((
                 name.eq(sales_account_name),
                 account_type.eq(BookAccountType::Revenue),
             ))
             .on_conflict_do_nothing()
-            .execute(&connection)?;
+            .execute(connection)?;
         diesel::insert_into(book_accounts)
             .values((
                 name.eq(purchases_account_name),
                 account_type.eq(BookAccountType::Expenses),
             ))
             .on_conflict_do_nothing()
-            .execute(&connection)?;
+            .execute(connection)?;
 
         Ok(accept.ser(MasterAccounts {
             bank_account_id: book_accounts
                 .filter(name.eq(bank_account_name))
                 .select(id)
-                .get_result(&connection)?,
+                .get_result(connection)?,
             cash_account_id: book_accounts
                 .filter(name.eq(cash_account_name))
                 .select(id)
-                .get_result(&connection)?,
+                .get_result(connection)?,
             sales_account_id: book_accounts
                 .filter(name.eq(sales_account_name))
                 .select(id)
-                .get_result(&connection)?,
+                .get_result(connection)?,
             purchases_account_id: book_accounts
                 .filter(name.eq(purchases_account_name))
                 .select(id)
-                .get_result(&connection)?,
+                .get_result(connection)?,
         }))
     })
 }

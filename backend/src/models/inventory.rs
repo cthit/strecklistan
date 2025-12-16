@@ -10,8 +10,8 @@ pub struct InventoryBundle {
 }
 
 #[derive(Insertable, AsChangeset, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "inventory_bundles"]
-#[changeset_options(treat_none_as_null = "true")]
+#[diesel(table_name = inventory_bundles)]
+#[diesel(treat_none_as_null = true)]
 pub struct NewInventoryBundle {
     pub name: String,
     pub price: i32,
@@ -26,7 +26,7 @@ pub struct InventoryBundleItem {
 }
 
 #[derive(Insertable, AsChangeset, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "inventory_bundle_items"]
+#[diesel(table_name = inventory_bundle_items)]
 pub struct NewInventoryBundleItem {
     pub bundle_id: i32,
     pub item_id: i32,

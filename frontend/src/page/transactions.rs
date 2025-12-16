@@ -2,13 +2,14 @@ use crate::app::Msg;
 use crate::components::filter_menu::{FilterMenu, FilterMenuMsg};
 use crate::generated::css_classes::C;
 use crate::page::loading::Loading;
-use crate::util::export::{download_file, make_csv_transaction_list, CSVStyleTransaction};
+use crate::util::export::{CSVStyleTransaction, download_file, make_csv_transaction_list};
 use crate::util::simple_ev;
 use chrono::{FixedOffset, Local};
+use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::Resources;
-use seed_fetcher::{event, NotAvailable, ResourceStore};
+use seed_fetcher::{NotAvailable, ResourceStore, event};
 use std::collections::HashMap;
 use strecklistan_api::{
     book_account::{BookAccount, BookAccountId, MasterAccounts},
@@ -37,6 +38,7 @@ pub enum TransactionsMsg {
     ShowReceipt(TransactionId),
 
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 }
 
@@ -149,9 +151,8 @@ impl TransactionsPage {
                 self.show_delete = false;
                 orders_local.perform_cmd(async move {
                     let result = async {
-                        Request::new(format!("/api/transaction/{}", id))
-                            .method(Method::Delete)
-                            .fetch()
+                        Request::delete(&format!("/api/transaction/{}", id))
+                            .send()
                             .await?
                             .json()
                             .await
@@ -159,7 +160,7 @@ impl TransactionsPage {
                     .await;
                     result
                         .map_err(|e| {
-                            error!("Failed to delete transaction", e);
+                            gloo_console::error!(format!("Failed to delete transaction {e:?}"));
                         })
                         .map(TransactionsMsg::TransactionDeleted)
                         .ok()
@@ -167,7 +168,7 @@ impl TransactionsPage {
             }
 
             TransactionsMsg::TransactionDeleted(id) => {
-                log!(format!("Transaction {} deleted", id));
+                gloo_console::log!(format!("Transaction {} deleted", id));
                 rs.mark_as_dirty(Res::transactions_url(), orders);
                 rs.mark_as_dirty(Res::book_accounts_url(), orders);
                 rs.mark_as_dirty(Res::inventory_url(), orders);

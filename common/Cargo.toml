@@ -5,18 +5,19 @@ authors = ["Joakim Hulthe <joakim@hulthe.net>"]
 license = "MPL-2.0"
 description = "Public API types and functions of strecklistan: a simple web-shop"
 repository = "https://github.com/hulthe/strecklistan"
-edition = "2021"
+edition = "2024"
 workspace = ".."
 
 [dependencies]
-chrono = "0.4"
+diesel = { workspace = true, optional = true }
+diesel_migrations = { workspace = true, optional = true }
+diesel-derive-enum = { workspace = true, optional = true }
+diesel_derives = { workspace = true, optional = true }
+chrono.workspace = true
+
 getset = "0.1"
 regex = "1"
 lazy_static = "1"
-
-diesel = { version = "1.4", optional = true }
-diesel_derives = { version = "1.4", optional = true }
-diesel-derive-enum = { version = "1.1", features = ["postgres"], optional = true }
 
 [dependencies.serde]
 version = "1"

@@ -2,6 +2,7 @@ use crate::components::parsed_input::{ParsedInput, ParsedInputMsg};
 use crate::generated::css_classes::C;
 use crate::strings;
 use crate::util::simple_ev;
+use gloo_net::http::Request;
 use seed::prelude::*;
 use seed::*;
 use seed_fetcher::ResourceStore;
@@ -106,10 +107,9 @@ impl Checkout {
 
                     orders.perform_cmd(async move {
                         let result = async {
-                            Request::new("/api/transaction")
-                                .method(Method::Post)
+                            Request::post("/api/transaction")
                                 .json(&transaction)?
-                                .fetch()
+                                .send()
                                 .await?
                                 .json()
                                 .await
@@ -121,7 +121,7 @@ impl Checkout {
                             }
                             Err(e) => {
                                 // TODO: show notification
-                                error!("Failed to post transaction", e);
+                                gloo_console::error!(format!("Failed to post transaction {e}"));
                                 None
                             }
                         }
@@ -131,7 +131,7 @@ impl Checkout {
             }
             CheckoutMsg::PurchaseSent { transaction_id } => {
                 self.waiting_for_izettle = false;
-                log!("Posted transaction ID: ", transaction_id);
+                gloo_console::log!("Posted transaction ID: ", transaction_id);
                 self.transaction_total_input.set_value(Default::default());
                 self.transaction_bundles = vec![];
                 self.debited_account = None;
@@ -206,7 +206,7 @@ impl Checkout {
                 {
                     b.change -= amount;
                 } else {
-                    log!("Pushing bundle", bundle);
+                    gloo_console::log!(format!("Pushing bundle: {bundle:?}"));
                     self.transaction_bundles.push(bundle);
                 }
             }

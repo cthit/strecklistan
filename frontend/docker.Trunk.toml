@@ -1,0 +1,13 @@
+# this Trunk.toml is for use with compose.yml
+
+[build]
+dist = "/out/dist"
+
+[serve]
+addresses = ["0.0.0.0"]
+port = 8080
+
+[[proxy]]
+rewrite = "/api/"
+backend = "http://backend:8000/api/"
+

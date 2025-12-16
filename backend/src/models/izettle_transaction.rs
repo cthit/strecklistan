@@ -36,7 +36,7 @@ pub struct IZettlePostTransaction {
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "izettle_transaction"]
+#[diesel(table_name = izettle_transaction)]
 pub struct NewIZettleTransaction {
     pub description: Option<String>,
     pub time: Option<DateTime<Utc>>,
@@ -46,7 +46,7 @@ pub struct NewIZettleTransaction {
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "izettle_transaction_bundle"]
+#[diesel(table_name = izettle_transaction_bundle)]
 pub struct NewIZettleTransactionBundle {
     pub transaction_id: i32,
     pub description: Option<String>,
@@ -55,14 +55,14 @@ pub struct NewIZettleTransactionBundle {
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "izettle_transaction_item"]
+#[diesel(table_name = izettle_transaction_item)]
 pub struct NewIZettleTransactionItem {
     pub bundle_id: i32,
     pub item_id: i32,
 }
 
 #[derive(Insertable, Serialize, Deserialize, Debug, PartialEq)]
-#[table_name = "izettle_post_transaction"]
+#[diesel(table_name = izettle_post_transaction)]
 pub struct NewIZettlePostTransaction {
     pub izettle_transaction_id: i32,
     pub transaction_id: Option<i32>,

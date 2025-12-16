@@ -2,7 +2,6 @@ use chrono::{NaiveDate, NaiveTime};
 use core::fmt::Debug;
 use js_sys::encode_uri_component;
 use mime::Mime;
-use seed::error;
 use serde::Serialize;
 use std::io::Write;
 use strecklistan_api::{
@@ -12,7 +11,7 @@ use strecklistan_api::{
     transaction::{Transaction, TransactionId},
 };
 use wasm_bindgen::JsCast;
-use web_sys::{window, Element, HtmlElement};
+use web_sys::{Element, HtmlElement, window};
 
 pub fn csv_writer<W: Write>(writer: W) -> csv::Writer<W> {
     csv::WriterBuilder::new()
@@ -118,7 +117,7 @@ pub fn make_csv_transaction_list(
 /// Make the browser download the provided non-binary file
 pub fn download_file(filename: &str, mime_type: Mime, text: &str) -> Result<(), ()> {
     fn log_error<T: Debug>(err: T) {
-        error!(err)
+        gloo_console::error!(format!("{err:?}"))
     }
 
     let window = window().ok_or(())?;

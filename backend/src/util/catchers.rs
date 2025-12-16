@@ -1,6 +1,6 @@
 use crate::util::StatusJson;
 use rocket::http::Status;
-use rocket::{catch, catchers, Catcher, Request};
+use rocket::{Catcher, Request, catch, catchers};
 
 pub fn catchers() -> Vec<Catcher> {
     catchers![not_found, unauthorized, bad_request,]

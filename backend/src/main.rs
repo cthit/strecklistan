@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)]
 #[macro_use]
 extern crate diesel;
 
@@ -12,7 +13,7 @@ pub mod util;
 
 use crate::routes::rest;
 use crate::routes::rest::izettle::IZettleNotifier;
-use crate::util::{catchers, FileResponder};
+use crate::util::{FileResponder, catchers};
 
 use clap::Parser;
 use dotenv::dotenv;

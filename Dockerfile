@@ -1,10 +1,11 @@
 ##################
 ### BASE STAGE ###
 ##################
-FROM rust:1.58.1 as base
+FROM rust:1.91.1 AS base
 
 # Install build dependencies
-RUN cargo install --locked cargo-make trunk strip_cargo_version
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall cargo-make@0.37.24 trunk@0.21.14 strip_cargo_version@0.0.3
 RUN rustup target add wasm32-unknown-unknown
 
 WORKDIR /app
@@ -89,4 +90,4 @@ COPY backend/migrations /migrations
 # Copy html templates
 COPY backend/templates /templates
 
-CMD strecklistan
+CMD ["strecklistan"]

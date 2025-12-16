@@ -1,8 +1,8 @@
-use crate::database::{create_pool, DatabasePool};
+use crate::Opt;
+use crate::database::{DatabasePool, create_pool};
 use crate::schema::tables::event_signups;
 use crate::schema::tables::events;
 use crate::schema::tables::users;
-use crate::Opt;
 use clap::Parser;
 use diesel::RunQueryDsl;
 use dotenv::dotenv;
@@ -25,18 +25,18 @@ impl DatabaseState {
 
 impl Drop for DatabaseState {
     fn drop(&mut self) {
-        let connection = self
+        let mut connection = self
             .db_pool
             .get()
             .expect("Could not get database connection");
         diesel::delete(events::table)
-            .execute(&connection)
+            .execute(&mut connection)
             .expect("Could not truncate testing database table");
         diesel::delete(event_signups::table)
-            .execute(&connection)
+            .execute(&mut connection)
             .expect("Could not truncate testing database table");
         diesel::delete(users::table)
-            .execute(&connection)
+            .execute(&mut connection)
             .expect("Could not truncate testing database table");
     }
 }

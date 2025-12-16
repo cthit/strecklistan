@@ -1,7 +1,6 @@
-version: "3.9"
 services:
     db:
-        image: postgres
+        image: postgres:17
         restart: always
         volumes:
             - db_vol:/var/lib/postgresql/data
@@ -9,8 +8,15 @@ services:
             - 5432:5432
         environment:
             POSTGRES_USER: postgres
+            PGUSER: postgres # we need this also since pg_isready relies it
             POSTGRES_DB: strecklistan
             POSTGRES_PASSWORD: password
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready", "-d", "strecklistan"]
+            interval: 1s
+            timeout: 60s
+            retries: 60
+            start_period: 80s
 
     adminer:
         image: adminer
@@ -27,7 +33,7 @@ services:
             - build_vol:/out
         environment:
             CARGO_BUILD_TARGET_DIR: "/out/target"
-        entrypoint: ["trunk", "serve", "--dist", "/out/dist", "--proxy-backend", "http://backend:8000/api/"]
+        entrypoint: ["trunk", "serve", "--config", "docker.Trunk.toml"]
         links:
             - backend
         ports:
@@ -35,7 +41,9 @@ services:
 
     backend:
         depends_on:
-            - db
+            db:
+                condition: service_healthy
+                restart: true
         build:
             context: .
             dockerfile: docker/dev.backend.Dockerfile

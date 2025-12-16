@@ -22,7 +22,7 @@ Install the latest version of Rust using [rustup].
 [rustup]: https://rustup.rs/ "Rust Installer"
 
 The frontend and the backend need to be individually compiled. See
-the guides for each. Or alternatively, you can use docker-compose
+the guides for each. Or alternatively, you can use `docker compose`
 for a quick setup.
 
 ### Quick setup using Docker ###
@@ -30,10 +30,10 @@ for a quick setup.
 You know what to do.
 ~~~sh
 # launch the app on :8080 and launch adminer on :8081.
-docker-compose up
+docker compose up --build
 
 # and clean up when you're done
-docker-compose down
+docker compose down -v
 ~~~
 
 
