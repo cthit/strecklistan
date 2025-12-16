@@ -2,6 +2,7 @@ use crate::database::DatabaseConn;
 use crate::models::transaction::{object, relational};
 use diesel::prelude::*;
 use diesel::result::Error;
+use diesel::sql_types::Bool;
 use itertools::Itertools;
 use std::collections::HashMap;
 use strecklistan_api::transaction::TransactionId;
@@ -23,7 +24,7 @@ pub struct TransactionFilter {
 }
 
 pub fn query_transaction(
-    connection: &DatabaseConn,
+    connection: &mut DatabaseConn,
     filter: TransactionFilter,
 ) -> Result<TransactionJoined, Error> {
     use crate::schema::tables::transaction_bundles::dsl::{
@@ -37,11 +38,11 @@ pub fn query_transaction(
     };
 
     transactions
-        .filter(deleted_at.is_null().or(filter.deleted))
+        .filter(deleted_at.is_null().or::<_, Bool>(filter.deleted))
         .filter(
             transaction_id
                 .eq(filter.id.unwrap_or(-1))
-                .or(filter.id.is_none()),
+                .or::<_, Bool>(filter.id.is_none()),
         )
         .left_join(transaction_bundles.on(transaction_id.eq(bundle_transaction_id)))
         .left_join(transaction_items.on(bundle_id.eq(item_bundle_id)))
@@ -54,7 +55,7 @@ pub fn query_transaction(
 pub fn objectify_transations(transactions: TransactionJoined) -> Vec<object::Transaction> {
     transactions
         .into_iter()
-        .group_by(|(tr, _, _)| tr.id)
+        .chunk_by(|(tr, _, _)| tr.id)
         .into_iter()
         .map(|(_, mut xs)| {
             let (t0, b0, i0) = xs.next().unwrap();
@@ -69,7 +70,7 @@ pub fn objectify_transations(transactions: TransactionJoined) -> Vec<object::Tra
                 bundles: std::iter::once(b0.map(|b0| (b0, i0)))
                     .chain(xs.map(|(_, bx, ix)| bx.map(|bx| (bx, ix))))
                     .flatten()
-                    .group_by(|(bx, _)| bx.id)
+                    .chunk_by(|(bx, _)| bx.id)
                     .into_iter()
                     .map(|(_, mut xs)| {
                         let (bundle, i0) = xs.next().unwrap();

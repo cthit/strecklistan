@@ -1,6 +1,6 @@
 use crate::components::select::{SelectInput, SelectInputMsg};
 use crate::generated::css_classes::C;
-use crate::util::{simple_ev, CompareToStr};
+use crate::util::{CompareToStr, simple_ev};
 use seed::prelude::*;
 use seed::*;
 use std::cmp::Ordering;
@@ -140,40 +140,44 @@ impl FilterMenu {
                 simple_ev(Ev::Click, FilterMenuMsg::AddFilter),
                 "➕",
             ],
-            div![self
-                .filters
-                .iter()
-                .enumerate()
-                .map(|(filter_i, filter)| {
-                    div![
-                        C![C.filter_menu_item],
-                        // show the filter field select tag
-                        filter
-                            .field
-                            .view()
-                            .map_msg(move |msg| FilterMenuMsg::FilterFieldMsg { msg, filter_i }),
-                        // show the filter operator select tag
-                        filter
-                            .op
-                            .view()
-                            .map_msg(move |msg| FilterMenuMsg::FilterOpMsg { msg, filter_i }),
-                        // show the filter value input
-                        input![
-                            C![C.filter_menu_item_elem, C.filter_menu_value],
-                            attrs! { At::Value => filter.value },
-                            input_ev(Ev::Input, move |value| FilterMenuMsg::SetValue {
-                                filter_i,
-                                value,
-                            }),
-                        ],
-                        button![
-                            simple_ev(Ev::Click, FilterMenuMsg::DeleteFilter { filter_i }),
-                            C![C.filter_menu_delete],
-                            "✖",
+            div![
+                self.filters
+                    .iter()
+                    .enumerate()
+                    .map(|(filter_i, filter)| {
+                        div![
+                            C![C.filter_menu_item],
+                            // show the filter field select tag
+                            filter
+                                .field
+                                .view()
+                                .map_msg(move |msg| FilterMenuMsg::FilterFieldMsg {
+                                    msg,
+                                    filter_i
+                                }),
+                            // show the filter operator select tag
+                            filter
+                                .op
+                                .view()
+                                .map_msg(move |msg| FilterMenuMsg::FilterOpMsg { msg, filter_i }),
+                            // show the filter value input
+                            input![
+                                C![C.filter_menu_item_elem, C.filter_menu_value],
+                                attrs! { At::Value => filter.value },
+                                input_ev(Ev::Input, move |value| FilterMenuMsg::SetValue {
+                                    filter_i,
+                                    value,
+                                }),
+                            ],
+                            button![
+                                simple_ev(Ev::Click, FilterMenuMsg::DeleteFilter { filter_i }),
+                                C![C.filter_menu_delete],
+                                "✖",
+                            ]
                         ]
-                    ]
-                })
-                .collect::<Vec<_>>(),],
+                    })
+                    .collect::<Vec<_>>(),
+            ],
         ]
     }
 }

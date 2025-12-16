@@ -10,7 +10,7 @@ use crate::util::{compare_fuzzy, simple_ev};
 use crate::views::{view_inventory_bundle, view_inventory_item, view_tillgodo};
 use seed::prelude::*;
 use seed::*;
-use seed_fetcher::{event, DontFetch, NotAvailable, ResourceStore, Resources};
+use seed_fetcher::{DontFetch, NotAvailable, ResourceStore, Resources, event};
 use std::collections::HashMap;
 use strecklistan_api::{
     book_account::{BookAccount, BookAccountId, MasterAccounts},
@@ -80,6 +80,7 @@ impl FuzzySearch for Member {
 #[derive(Clone, Debug)]
 pub enum StoreMsg {
     ResFetched(event::Fetched),
+    #[allow(dead_code)] // not currently used
     ResMarkDirty(event::MarkDirty),
 
     SearchDebit(String),

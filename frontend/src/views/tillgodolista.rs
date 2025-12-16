@@ -10,12 +10,11 @@ pub fn view_tillgodo<M: 'static + Clone>(
     member: &Member,
     msg: M,
 ) -> Node<M> {
-    let tillgodo_money_class;
-    if account.balance < 0.into() {
-        tillgodo_money_class = C![C.tillgodo_money, C.tillgodo_money_angry];
+    let tillgodo_money_class = if account.balance < 0.into() {
+        C![C.tillgodo_money, C.tillgodo_money_angry]
     } else {
-        tillgodo_money_class = C![C.tillgodo_money];
-    }
+        C![C.tillgodo_money]
+    };
 
     div![
         C![C.tillgodo_entry],

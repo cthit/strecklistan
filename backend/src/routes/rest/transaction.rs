@@ -1,12 +1,12 @@
-use crate::database::transaction::query_transaction;
 use crate::database::DatabasePool;
+use crate::database::transaction::query_transaction;
 use crate::models::transaction::{object, relational};
 use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
 use diesel::prelude::*;
 use itertools::Itertools;
 use rocket::serde::json::Json;
-use rocket::{delete, get, post, State};
+use rocket::{State, delete, get, post};
 use std::collections::HashMap;
 
 /// POST `/transaction`
@@ -18,7 +18,7 @@ pub fn post_transaction(
     accept: SerAccept,
     transaction: Json<object::NewTransaction>,
 ) -> Result<Ser<i32>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     let object::NewTransaction {
         description,
@@ -36,13 +36,13 @@ pub fn post_transaction(
         amount: amount.into(),
     };
 
-    connection.transaction::<_, SJ, _>(|| {
+    connection.transaction::<_, SJ, _>(|connection| {
         let transaction_id = {
             use crate::schema::tables::transactions::dsl::*;
             diesel::insert_into(transactions)
                 .values(transaction)
                 .returning(id)
-                .get_result(&connection)?
+                .get_result(connection)?
         };
 
         for bundle in bundles.into_iter() {
@@ -58,13 +58,13 @@ pub fn post_transaction(
                 diesel::insert_into(transaction_bundles)
                     .values(&new_bundle)
                     .returning(id)
-                    .get_result(&connection)?
+                    .get_result(connection)?
             };
 
             let item_ids: Vec<_> = bundle
                 .item_ids
                 .into_iter()
-                .flat_map(|(item_id, count)| std::iter::repeat(item_id).take(count as usize))
+                .flat_map(|(item_id, count)| std::iter::repeat_n(item_id, count as usize))
                 .map(|item_id| relational::NewTransactionItem { bundle_id, item_id })
                 .collect();
 
@@ -72,7 +72,7 @@ pub fn post_transaction(
                 use crate::schema::tables::transaction_items::dsl::*;
                 diesel::insert_into(transaction_items)
                     .values(&item_ids)
-                    .execute(&connection)?;
+                    .execute(connection)?;
             }
         }
 
@@ -87,14 +87,14 @@ pub fn delete_transaction(
     accept: SerAccept,
     transaction_id: i32,
 ) -> Result<Ser<i32>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
     use crate::schema::tables::transactions::dsl::{deleted_at, id, transactions};
     let deleted_id = diesel::update(transactions)
         .set(deleted_at.eq(Some(chrono::Utc::now().naive_utc())))
         .filter(id.eq(transaction_id))
         .returning(id)
-        .get_result(&connection)?;
+        .get_result(&mut connection)?;
 
     Ok(accept.ser(deleted_id))
 }
@@ -107,13 +107,13 @@ pub fn get_transactions(
     db_pool: &State<DatabasePool>,
     accept: SerAccept,
 ) -> Result<Ser<Vec<object::Transaction>>, SJ> {
-    let connection = db_pool.inner().get()?;
+    let mut connection = db_pool.inner().get()?;
 
-    let joined = query_transaction(&connection, Default::default())?;
+    let joined = query_transaction(&mut connection, Default::default())?;
 
     let transactions: Vec<object::Transaction> = joined
         .into_iter()
-        .group_by(|(tr, _, _)| tr.id)
+        .chunk_by(|(tr, _, _)| tr.id)
         .into_iter()
         .map(|(_, mut xs)| {
             let (t0, b0, i0) = xs.next().unwrap();
@@ -128,7 +128,7 @@ pub fn get_transactions(
                 bundles: std::iter::once(b0.map(|b0| (b0, i0)))
                     .chain(xs.map(|(_, bx, ix)| bx.map(|bx| (bx, ix))))
                     .flatten()
-                    .group_by(|(bx, _)| bx.id)
+                    .chunk_by(|(bx, _)| bx.id)
                     .into_iter()
                     .map(|(_, mut xs)| {
                         let (bundle, i0) = xs.next().unwrap();
