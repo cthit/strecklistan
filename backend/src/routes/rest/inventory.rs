@@ -1,6 +1,6 @@
 use crate::database::DatabasePool;
 use crate::models::inventory::{
-    InventoryBundle as InventoryBundleRel, InventoryBundleItem, InventoryCSVExportItem,
+    InventoryBundle as InventoryBundleRel, InventoryBundleItem, InventoryCSVItem,
     NewInventoryBundle as NewInventoryBundleRel, NewInventoryBundleItem,
 };
 use crate::util::CsvResponse;
@@ -271,13 +271,15 @@ pub fn generate_csv<'r>(db_pool: &'_ State<DatabasePool>) -> Result<CsvResponse<
     let mut connection = db_pool.inner().get()?;
 
     use crate::schema::views::inventory_stock::dsl::{inventory_stock, name, price, stock};
-    let items: Vec<InventoryCSVExportItem> = inventory_stock
+    let items: Vec<(String, Option<i32>, i32)> = inventory_stock
         .select((name, price, stock))
         .load(&mut connection)?;
 
     let mut wtr = csv::Writer::from_writer(vec![]);
-    for item in items {
-        wtr.serialize(item).map_err(|e| {
+    // Convert prices from öre to kronor so that the CSV is nicer to use
+    for (item_name, price_ore, item_stock) in items {
+        let csv_item = InventoryCSVItem::from_db(item_name, price_ore, item_stock);
+        wtr.serialize(csv_item).map_err(|e| {
             SJ::new(
                 Status::InternalServerError,
                 format!("Failed to serialize CSV: {}", e),
@@ -362,7 +364,7 @@ pub async fn update_inventory_from_csv(
         ));
     }
 
-    let items: Vec<InventoryCSVExportItem> = rdr
+    let items: Vec<InventoryCSVItem> = rdr
         .deserialize()
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| SJ::new(Status::BadRequest, format!("Invalid CSV data: {}", e)))?;
@@ -383,11 +385,14 @@ pub async fn update_inventory_from_csv(
                 .first(connection)
                 .optional()?;
 
+            // Convert price from kronor to öre for database operations
+            let price_ore = csv_item.price_in_ore();
+
             let (item_id, current_stock) = if let Some(existing_item) = existing {
-                if csv_item.price.is_some() && csv_item.price != existing_item.price {
+                if price_ore.is_some() && price_ore != existing_item.price {
                     diesel::update(inv_dsl::inventory)
                         .filter(inv_dsl::id.eq(existing_item.id))
-                        .set(inv_dsl::price.eq(csv_item.price))
+                        .set(inv_dsl::price.eq(price_ore))
                         .execute(connection)?;
                 }
                 (existing_item.id, existing_item.stock)
@@ -395,7 +400,7 @@ pub async fn update_inventory_from_csv(
                 let new_id: InventoryItemId = diesel::insert_into(inv_dsl::inventory)
                     .values((
                         inv_dsl::name.eq(&csv_item.name),
-                        inv_dsl::price.eq(csv_item.price),
+                        inv_dsl::price.eq(price_ore),
                     ))
                     .returning(inv_dsl::id)
                     .get_result(connection)?;
@@ -405,7 +410,7 @@ pub async fn update_inventory_from_csv(
             let stock_change = csv_item.stock - current_stock;
 
             if stock_change != 0 {
-                stock_adjustments.push((item_id, csv_item.name, csv_item.price, stock_change));
+                stock_adjustments.push((item_id, csv_item.name, price_ore, stock_change));
             }
         }
 
@@ -498,7 +503,7 @@ pub async fn update_inventory_from_csv(
             )?;
         }
 
-        // Refresh the materialized view to update stock counts
+        // Refresh the materialized view to update stock counts and price
         diesel::sql_query("REFRESH MATERIALIZED VIEW inventory_stock").execute(connection)?;
 
         Ok(Status::Ok.into())

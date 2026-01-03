@@ -348,6 +348,11 @@ impl InventoryPage {
         for (&id, bundle) in res.bundles.iter() {
             if let Some(row) = self.bundle_rows.get_mut(&id) {
                 row.original = bundle.clone();
+                row.name = ParsedInput::new_with_text(&bundle.name);
+                row.price = err(ParsedInput::new_with_value(bundle.price));
+                row.image = ParsedInput::new_with_text(
+                    bundle.image_url.as_deref().unwrap_or(""),
+                );
             } else {
                 self.bundle_rows.insert(
                     id,
@@ -368,6 +373,12 @@ impl InventoryPage {
         for (&id, item) in res.items.iter() {
             if let Some(row) = self.item_rows.get_mut(&id) {
                 row.original = item.clone();
+                row.name = ParsedInput::new_with_text(&item.name);
+                row.price = err(match item.price {
+                    Some(price) => ParsedInput::new_with_value(Currency::from(price)),
+                    None => ParsedInput::new(),
+                });
+                row.image = ParsedInput::new_with_text(item.image_url.as_deref().unwrap_or(""));
             } else {
                 self.item_rows.insert(
                     id,

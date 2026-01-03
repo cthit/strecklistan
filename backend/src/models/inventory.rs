@@ -32,9 +32,27 @@ pub struct NewInventoryBundleItem {
     pub item_id: i32,
 }
 
-#[derive(Queryable, Serialize, Deserialize, Debug, PartialEq)]
-pub struct InventoryCSVExportItem {
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct InventoryCSVItem {
     pub name: String,
-    pub price: Option<i32>,
+    pub price: Option<f64>,
     pub stock: i32,
 }
+
+impl InventoryCSVItem {
+    /// Create from database values (price in öre)
+    pub fn from_db(name: String, price_ore: Option<i32>, stock: i32) -> Self {
+        InventoryCSVItem {
+            name,
+            price: price_ore.map(|p| p as f64 / 100.0),
+            stock,
+        }
+    }
+
+    /// Convert price from kronor to öre for database storage
+    pub fn price_in_ore(&self) -> Option<i32> {
+        self.price.map(|p| (p * 100.0).round() as i32)
+    }
+}
+
+
