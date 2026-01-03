@@ -35,10 +35,12 @@ pub enum InventoryMsg {
 
     ItemsChanged,
     BundlesChanged,
+    BulkChanged,
     ServerError(String),
 
     BundleInput(Field, InventoryBundleId, ParsedInputMsg),
     ItemInput(Field, InventoryItemId, ParsedInputMsg),
+    UploadCsv(web_sys::File),
 }
 
 pub struct InventoryPage {
@@ -265,6 +267,9 @@ impl InventoryPage {
             InventoryMsg::BundlesChanged => {
                 rs.mark_as_dirty(Res::bundles_url(), orders);
             }
+            InventoryMsg::BulkChanged => {
+                rs.mark_as_dirty(Res::items_url(), orders);
+            }
             InventoryMsg::ServerError(message) => {
                 orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
                     duration_ms: 10000,
@@ -289,6 +294,42 @@ impl InventoryPage {
                     Field::Price => row.map(|row| row.price.update(msg)),
                     Field::Image => row.map(|row| row.image.update(msg)),
                 };
+            }
+            InventoryMsg::UploadCsv(file) => {
+                orders_local.perform_cmd(async move {
+                    let form_data = match web_sys::FormData::new() {
+                        Ok(fd) => fd,
+                        Err(_) => {
+                            gloo_console::error!("Failed to create FormData");
+                            return InventoryMsg::ServerError("Failed to create form data".to_string());
+                        }
+                    };
+                    if let Err(_) = form_data.append_with_blob("file", &file) {
+                        gloo_console::error!("Failed to append file to FormData");
+                        return InventoryMsg::ServerError("Failed to append file".to_string());
+                    }
+                    let result: Result<_, String> = async {
+                        let response = Request::post("/api/inventory/csv")
+                            .body(form_data).map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
+                    }
+                    .await;
+
+                    match result {
+                        Ok(_) => InventoryMsg::BulkChanged,
+                        Err(e) => {
+                            gloo_console::error!(format!("Failed to upload CSV: {e}"));
+                            InventoryMsg::ServerError(format!("{:?}", e))
+                        }
+                    }
+                });
             }
         }
 
@@ -443,6 +484,31 @@ impl InventoryPage {
                 self.item_rows.iter().map(item_row),
                 wide_button("wide_button", strings::NEW_ITEM, InventoryMsg::NewItem),
                 wide_anchor("wide_button_blue", strings::GENERATE_CSV, "/api/inventory/csv", "inventory.csv"),
+                tr![td![
+                    table_wide(),
+                    label![
+                        C![C.wide_button, "wide_button_blue"],
+                        "Upload CSV",
+                        input![
+                            attrs!{At::Type => "file", At::Accept => ".csv", At::Style => "display: none;"},
+                            ev(Ev::Change, |event: web_sys::Event| {
+                                let Some(target) = event.target() else {
+                                    return InventoryMsg::ServerError("No event target".to_string());
+                                };
+                                let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() else {
+                                    return InventoryMsg::ServerError("Event target is not an input element".to_string());
+                                };
+                                let Some(files) = input.files() else {
+                                    return InventoryMsg::ServerError("No files available".to_string());
+                                };
+                                let Some(file) = files.get(0) else {
+                                    return InventoryMsg::ServerError("No file selected".to_string());
+                                };
+                                InventoryMsg::UploadCsv(file)
+                            })
+                        ]
+                    ]
+                ]],
             ],
         ]
         .map_msg(Msg::Inventory)
