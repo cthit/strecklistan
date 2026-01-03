@@ -1,10 +1,8 @@
 use crate::database::DatabasePool;
-use crate::models::inventory::{
-    InventoryBundle as InventoryBundleRel, InventoryBundleItem,
-    NewInventoryBundle as NewInventoryBundleRel, NewInventoryBundleItem,
-};
+use crate::models::inventory::{InventoryBundle as InventoryBundleRel, InventoryBundleItem, InventoryCSVExportItem, NewInventoryBundle as NewInventoryBundleRel, NewInventoryBundleItem};
 use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
+use crate::util::CsvResponse;
 use chrono::Utc;
 use diesel::prelude::*;
 use itertools::Itertools;
@@ -34,6 +32,37 @@ pub fn get_items(
             .map(|item: InventoryItemStock| (item.id, item))
             .collect(),
     ))
+}
+
+#[get("/inventory/csv")]
+pub fn generate_csv<'r>(
+    db_pool: &'_ State<DatabasePool>,
+) -> Result<CsvResponse<'_>, SJ> {
+    let mut connection = db_pool.inner().get()?;
+
+    use crate::schema::views::inventory_stock::dsl::{inventory_stock, name, price, stock};
+    let items: Vec<InventoryCSVExportItem> = inventory_stock.select((name, price, stock)).load(&mut connection)?;
+
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    for item in items {
+        wtr.serialize(item).map_err(|e| {
+            SJ::new(
+                Status::InternalServerError,
+                format!("Failed to serialize CSV: {}", e),
+            )
+        })?;
+    }
+    let data = wtr.into_inner().map_err(|e| {
+        SJ::new(
+            Status::InternalServerError,
+            format!("Failed to finalize CSV: {}", e),
+        )
+    })?;
+
+    Ok(CsvResponse {
+        data,
+        filename: "inventory.csv",
+    })
 }
 
 #[post("/inventory/item", data = "<item>")]

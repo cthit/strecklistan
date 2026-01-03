@@ -1110,6 +1110,8 @@ video {
 	font-size: 100%;
 	line-height: 1.15;
 	width: 100%;
+	display: block;
+	text-align: center;
 }
 
 .wide_button:hover {
@@ -1126,7 +1128,7 @@ video {
 }
 
 .wide_button_blue:hover {
-	background-color: #0056b3;
+	background-color: #3399ff;
 }
 
 .wide_button_blue:disabled {

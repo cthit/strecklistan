@@ -31,3 +31,10 @@ pub struct NewInventoryBundleItem {
     pub bundle_id: i32,
     pub item_id: i32,
 }
+
+#[derive(Queryable, Serialize)]
+pub struct InventoryCSVExportItem {
+    pub name: String,
+    pub price: Option<i32>,
+    pub stock: i32,
+}

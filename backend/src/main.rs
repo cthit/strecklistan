@@ -67,6 +67,7 @@ async fn main() {
                 rest::event::get_event,
                 rest::event::get_event_range,
                 rest::inventory::get_items,
+                rest::inventory::generate_csv,
                 rest::inventory::post_item,
                 rest::inventory::put_item,
                 rest::inventory::delete_item,
