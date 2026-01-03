@@ -269,6 +269,7 @@ impl InventoryPage {
             }
             InventoryMsg::BulkChanged => {
                 rs.mark_as_dirty(Res::items_url(), orders);
+                rs.mark_as_dirty(Res::bundles_url(), orders);
             }
             InventoryMsg::ServerError(message) => {
                 orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
@@ -309,7 +310,7 @@ impl InventoryPage {
                         return InventoryMsg::ServerError("Failed to append file".to_string());
                     }
                     let result: Result<_, String> = async {
-                        let response = Request::post("/api/inventory/csv")
+                        let response = Request::put("/api/inventory/csv/update")
                             .body(form_data).map_err(|e| e.to_string())?
                             .send()
                             .await
