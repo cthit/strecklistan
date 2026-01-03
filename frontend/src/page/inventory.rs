@@ -39,6 +39,8 @@ pub enum InventoryMsg {
 
     BundleInput(Field, InventoryBundleId, ParsedInputMsg),
     ItemInput(Field, InventoryItemId, ParsedInputMsg),
+
+    GenerateCsv,
 }
 
 pub struct InventoryPage {
@@ -290,6 +292,41 @@ impl InventoryPage {
                     Field::Image => row.map(|row| row.image.update(msg)),
                 };
             }
+            InventoryMsg::GenerateCsv => {
+                orders_local.perform_cmd(async move {
+                    let result: Result<_, String> = async {
+                        let response = Request::get("/api/inventory/csv")
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
+                    }
+                    .await;
+
+                    match result {
+                        Ok(response) => {
+                            match response.text().await {
+                                Ok(_text) => {
+                                    // TODO: download CSV file
+                                    InventoryMsg::ServerError("CSV download not implemented yet".into())
+                                }
+                                Err(e) => {
+                                    gloo_console::error!(format!("Failed to get text: {e}"));
+                                    InventoryMsg::ServerError(format!("{:?}", e))
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            gloo_console::error!(format!("Failed to download CSV: {e}"));
+                            InventoryMsg::ServerError(format!("{:?}", e))
+                        }
+                    }
+                });
+            }
         }
 
         Ok(())
@@ -406,10 +443,10 @@ impl InventoryPage {
 
         let table_wide = || attrs! { At::ColSpan => 6 };
 
-        let wide_button = |label: &str, msg: InventoryMsg| {
+        let wide_button = |class: &str, label: &str, msg: InventoryMsg| {
             tr![td![
                 table_wide(),
-                button![C![C.wide_button], simple_ev(Ev::Click, msg), label,],
+                button![C![C.wide_button, class], simple_ev(Ev::Click, msg), label,],
             ]]
         };
 
@@ -430,11 +467,12 @@ impl InventoryPage {
                 td![table_wide(), h1![strings::INVENTORY_BUNDLES]],
                 header(),
                 self.bundle_rows.iter().map(bundle_row),
-                wide_button(strings::NEW_BUNDLE, InventoryMsg::NewBundle),
+                wide_button("wide_button", strings::NEW_BUNDLE, InventoryMsg::NewBundle),
                 td![table_wide(), h1![strings::INVENTORY_ITEMS]],
                 header(),
                 self.item_rows.iter().map(item_row),
-                wide_button(strings::NEW_ITEM, InventoryMsg::NewItem),
+                wide_button("wide_button", strings::NEW_ITEM, InventoryMsg::NewItem),
+                wide_button("wide_button_blue", strings::GENERATE_CSV, InventoryMsg::GenerateCsv),
             ],
         ]
         .map_msg(Msg::Inventory)

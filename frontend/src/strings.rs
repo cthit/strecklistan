@@ -37,3 +37,5 @@ pub const INVENTORY_ITEMS: &str = "Varor";
 pub const INVENTORY_BUNDLES: &str = "Paket";
 pub const NEW_ITEM: &str = "Ny vara";
 pub const NEW_BUNDLE: &str = "Nytt paket";
+
+pub const GENERATE_CSV: &str = "Generera CSV för bulkinmatning";

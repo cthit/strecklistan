@@ -1121,6 +1121,18 @@ video {
 	cursor: default;
 }
 
+.wide_button_blue {
+	background-color: #007bff;
+}
+
+.wide_button_blue:hover {
+	background-color: #0056b3;
+}
+
+.wide_button_blue:disabled {
+	background-color: #6c757d;
+}
+
 .button_danger {
 	background-color: #7b3434;
 }
