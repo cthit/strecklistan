@@ -1,7 +1,7 @@
 use crate::app::Msg;
 use crate::components::parsed_input::{ParsedInput, ParsedInputMsg};
 use crate::generated::css_classes::C;
-use crate::notification_manager::{Notification, NotificationMessage};
+use crate::notification_manager::{Notification, NotificationMessage, NotificationType};
 use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::simple_ev;
@@ -35,15 +35,19 @@ pub enum InventoryMsg {
 
     ItemsChanged,
     BundlesChanged,
+    BulkChanged,
     ServerError(String),
 
     BundleInput(Field, InventoryBundleId, ParsedInputMsg),
     ItemInput(Field, InventoryItemId, ParsedInputMsg),
+    UploadCsv(web_sys::File),
+    SetShowSidePanel(bool),
 }
 
 pub struct InventoryPage {
     bundle_rows: BTreeMap<InventoryBundleId, Row<InventoryBundle>>,
     item_rows: BTreeMap<InventoryItemId, Row<InventoryItem>>,
+    show_side_panel: bool,
 }
 
 #[derive(Resources)]
@@ -79,6 +83,7 @@ impl InventoryPage {
         let mut p = InventoryPage {
             item_rows: Default::default(),
             bundle_rows: Default::default(),
+            show_side_panel: false,
         };
         if let Ok(state) = Res::acquire(rs, orders) {
             p.rebuild_data(&state);
@@ -265,12 +270,25 @@ impl InventoryPage {
             InventoryMsg::BundlesChanged => {
                 rs.mark_as_dirty(Res::bundles_url(), orders);
             }
+            InventoryMsg::BulkChanged => {
+                rs.mark_as_dirty(Res::items_url(), orders);
+                rs.mark_as_dirty(Res::bundles_url(), orders);
+                orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
+                    duration_ms: 5000,
+                    notification: Notification {
+                        title: strings::CSV_UPLOAD_SUCCESS.to_string(),
+                        body: Some(strings::CSV_UPLOAD_SUCCESS_BODY.to_string()),
+                        notification_type: NotificationType::Success,
+                    },
+                }));
+            }
             InventoryMsg::ServerError(message) => {
                 orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
                     duration_ms: 10000,
                     notification: Notification {
                         title: strings::SERVER_ERROR.to_string(),
                         body: Some(message),
+                        notification_type: NotificationType::Error,
                     },
                 }));
             }
@@ -290,6 +308,45 @@ impl InventoryPage {
                     Field::Image => row.map(|row| row.image.update(msg)),
                 };
             }
+            InventoryMsg::UploadCsv(file) => {
+                orders_local.perform_cmd(async move {
+                    let form_data = match web_sys::FormData::new() {
+                        Ok(fd) => fd,
+                        Err(_) => {
+                            gloo_console::error!("Failed to create FormData");
+                            return InventoryMsg::ServerError("Failed to create form data".to_string());
+                        }
+                    };
+                    if let Err(_) = form_data.append_with_blob("file", &file) {
+                        gloo_console::error!("Failed to append file to FormData");
+                        return InventoryMsg::ServerError("Failed to append file".to_string());
+                    }
+                    let result: Result<_, String> = async {
+                        let response = Request::put("/api/inventory/csv/update")
+                            .body(form_data).map_err(|e| e.to_string())?
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if response.ok() {
+                            Ok(response)
+                        } else {
+                            Err(format!("Bad status code: {}", response.status()))
+                        }
+                    }
+                    .await;
+
+                    match result {
+                        Ok(_) => InventoryMsg::BulkChanged,
+                        Err(e) => {
+                            gloo_console::error!(format!("Failed to upload CSV: {e}"));
+                            InventoryMsg::ServerError(format!("{:?}", e))
+                        }
+                    }
+                });
+            }
+            InventoryMsg::SetShowSidePanel(show_side_panel) => {
+                self.show_side_panel = show_side_panel;
+            }
         }
 
         Ok(())
@@ -306,6 +363,11 @@ impl InventoryPage {
         for (&id, bundle) in res.bundles.iter() {
             if let Some(row) = self.bundle_rows.get_mut(&id) {
                 row.original = bundle.clone();
+                row.name = ParsedInput::new_with_text(&bundle.name);
+                row.price = err(ParsedInput::new_with_value(bundle.price));
+                row.image = ParsedInput::new_with_text(
+                    bundle.image_url.as_deref().unwrap_or(""),
+                );
             } else {
                 self.bundle_rows.insert(
                     id,
@@ -326,6 +388,12 @@ impl InventoryPage {
         for (&id, item) in res.items.iter() {
             if let Some(row) = self.item_rows.get_mut(&id) {
                 row.original = item.clone();
+                row.name = ParsedInput::new_with_text(&item.name);
+                row.price = err(match item.price {
+                    Some(price) => ParsedInput::new_with_value(Currency::from(price)),
+                    None => ParsedInput::new(),
+                });
+                row.image = ParsedInput::new_with_text(item.image_url.as_deref().unwrap_or(""));
             } else {
                 self.item_rows.insert(
                     id,
@@ -406,10 +474,10 @@ impl InventoryPage {
 
         let table_wide = || attrs! { At::ColSpan => 6 };
 
-        let wide_button = |label: &str, msg: InventoryMsg| {
+        let wide_button = |class: &str, label: &str, msg: InventoryMsg| {
             tr![td![
                 table_wide(),
-                button![C![C.wide_button], simple_ev(Ev::Click, msg), label,],
+                button![C![C.wide_button, class], simple_ev(Ev::Click, msg), label,],
             ]]
         };
 
@@ -426,15 +494,75 @@ impl InventoryPage {
 
         div![
             C![C.inventory_page],
+            // Side panel for CSV operations
+            div![
+                C![C.left_panel],
+                if self.show_side_panel {
+                    C![C.left_panel_showing]
+                } else {
+                    C![]
+                },
+                div![
+                    C![C.left_panel_entry],
+                    h2![C![C.left_panel_entry_header], strings::CSV_FEATURE_HEADER],
+                    p![strings::CSV_FEATURE_DESCRIPTION],
+                ],
+                div![
+                    C![C.left_panel_entry],
+                    a![
+                        C![C.wide_button, C.wide_button_blue],
+                        attrs!{At::Href => "/api/inventory/csv", At::Download => "inventory.csv"},
+                        strings::GENERATE_CSV,
+                    ],
+                    label![
+                        C![C.wide_button, C.wide_button_blue, C.space_above],
+                        strings::UPLOAD_CSV,
+                        input![
+                            attrs!{At::Type => "file", At::Accept => ".csv", At::Style => "display: none;"},
+                            ev(Ev::Change, |event: web_sys::Event| {
+                                let Some(target) = event.target() else {
+                                    return InventoryMsg::ServerError("No event target".to_string());
+                                };
+                                let Ok(input) = target.dyn_into::<web_sys::HtmlInputElement>() else {
+                                    return InventoryMsg::ServerError("Event target is not an input element".to_string());
+                                };
+                                let Some(files) = input.files() else {
+                                    return InventoryMsg::ServerError("No files available".to_string());
+                                };
+                                let Some(file) = files.get(0) else {
+                                    return InventoryMsg::ServerError("No file selected".to_string());
+                                };
+                                InventoryMsg::UploadCsv(file)
+                            })
+                        ]
+                    ]
+                ],
+            ],
+            // Toggle button for side panel
+            button![
+                C![C.left_panel_button],
+                simple_ev(
+                    Ev::Click,
+                    InventoryMsg::SetShowSidePanel(!self.show_side_panel),
+                ),
+                "⚙"
+            ],
+            // Spacer to prevent content from being hidden behind the side panel
+            div![if self.show_side_panel {
+                C![C.left_panel_sub_spacer]
+            } else {
+                C![C.left_panel_sub_spacer, C.left_panel_sub_spacer_hidden]
+            },],
+            // Main inventory table
             table![
                 td![table_wide(), h1![strings::INVENTORY_BUNDLES]],
                 header(),
                 self.bundle_rows.iter().map(bundle_row),
-                wide_button(strings::NEW_BUNDLE, InventoryMsg::NewBundle),
+                wide_button("wide_button", strings::NEW_BUNDLE, InventoryMsg::NewBundle),
                 td![table_wide(), h1![strings::INVENTORY_ITEMS]],
                 header(),
                 self.item_rows.iter().map(item_row),
-                wide_button(strings::NEW_ITEM, InventoryMsg::NewItem),
+                wide_button("wide_button", strings::NEW_ITEM, InventoryMsg::NewItem),
             ],
         ]
         .map_msg(Msg::Inventory)

@@ -20,7 +20,7 @@ use dotenv::dotenv;
 use rocket::routes;
 use rocket_dyn_templates::Template;
 
-#[derive(Default, Parser)]
+#[derive(Default, Parser, Clone, Debug)]
 pub struct Opt {
     /// Database url specified as a postgres:// uri
     #[clap(long, short, env = "DATABASE_URL")]
@@ -37,6 +37,22 @@ pub struct Opt {
     /// Time until a cached static file must be invalidated
     #[clap(long, env = "STATIC_FILES_MAX_AGE", default_value_t)]
     max_age: usize,
+
+    /// Book account ID for CSV import asset account (e.g., Bankkonto)
+    #[clap(long, env = "CSV_IMPORT_ASSET_ACCOUNT")]
+    pub csv_import_asset_account: Option<i32>,
+
+    /// Book account ID for CSV import expense account (e.g., Inköp)
+    #[clap(long, env = "CSV_IMPORT_EXPENSE_ACCOUNT")]
+    pub csv_import_expense_account: Option<i32>,
+
+    /// Transaction description for CSV imports
+    #[clap(long, env = "CSV_IMPORT_TRANSACTION_DESCRIPTION", default_value = "CSV Bulkhantering")]
+    pub csv_import_transaction_description: String,
+
+    /// Transaction description for CSV imports when stock decreases (optional, falls back to CSV_IMPORT_TRANSACTION_DESCRIPTION)
+    #[clap(long, env = "CSV_IMPORT_TRANSACTION_DESCRIPTION_DECREASE")]
+    pub csv_import_transaction_description_decrease: Option<String>,
 }
 
 #[rocket::main]
@@ -51,14 +67,19 @@ async fn main() {
         database::run_migrations(&db_pool);
     }
 
+    // Extract values we need before moving opt
+    let static_file_cache = opt.static_file_cache;
+    let max_age = opt.max_age;
+
     let rocket = rocket::build()
         .manage(db_pool)
+        .manage(opt)
         .manage(IZettleNotifier::default())
         .register("/", catchers())
         .attach(FileResponder {
             folder: "www",
-            enable_cache: opt.static_file_cache,
-            max_age: opt.max_age,
+            enable_cache: static_file_cache,
+            max_age,
         })
         .attach(Template::fairing())
         .mount(
@@ -75,6 +96,8 @@ async fn main() {
                 rest::inventory::put_bundle,
                 rest::inventory::post_bundle,
                 rest::inventory::delete_inventory_bundle,
+                rest::inventory::generate_csv,
+                rest::inventory::update_inventory_from_csv,
                 rest::transaction::get_transactions,
                 rest::transaction::post_transaction,
                 rest::transaction::delete_transaction,
