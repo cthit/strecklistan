@@ -14,6 +14,14 @@
 	animation: notification_enter 1s 1;
 }
 
+.notification_error {
+	background-color: #7b3434;
+}
+
+.notification_success {
+	background-color: #1f9d55;
+}
+
 .notification_body {
 	overflow-wrap: break-word;
 }

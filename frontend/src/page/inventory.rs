@@ -1,7 +1,7 @@
 use crate::app::Msg;
 use crate::components::parsed_input::{ParsedInput, ParsedInputMsg};
 use crate::generated::css_classes::C;
-use crate::notification_manager::{Notification, NotificationMessage};
+use crate::notification_manager::{Notification, NotificationMessage, NotificationType};
 use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::simple_ev;
@@ -273,6 +273,14 @@ impl InventoryPage {
             InventoryMsg::BulkChanged => {
                 rs.mark_as_dirty(Res::items_url(), orders);
                 rs.mark_as_dirty(Res::bundles_url(), orders);
+                orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
+                    duration_ms: 5000,
+                    notification: Notification {
+                        title: strings::CSV_UPLOAD_SUCCESS.to_string(),
+                        body: Some(strings::CSV_UPLOAD_SUCCESS_BODY.to_string()),
+                        notification_type: NotificationType::Success,
+                    },
+                }));
             }
             InventoryMsg::ServerError(message) => {
                 orders.send_msg(Msg::Notification(NotificationMessage::ShowNotification {
@@ -280,6 +288,7 @@ impl InventoryPage {
                     notification: Notification {
                         title: strings::SERVER_ERROR.to_string(),
                         body: Some(message),
+                        notification_type: NotificationType::Error,
                     },
                 }));
             }

@@ -3,7 +3,7 @@ use crate::components::izettle_pay::{IZettlePay, IZettlePayErr, IZettlePayMsg};
 use crate::components::parsed_input::{ParsedInput, ParsedInputMsg};
 use crate::fuzzy_search::{FuzzyScore, FuzzySearch};
 use crate::generated::css_classes::C;
-use crate::notification_manager::{Notification, NotificationMessage};
+use crate::notification_manager::{Notification, NotificationMessage, NotificationType};
 use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::simple_ev;
@@ -228,6 +228,7 @@ impl DepositionPage {
                             .amount_input
                             .parsed()
                             .map(|value| format!("{}:-", value)),
+                        notification_type: NotificationType::Success,
                     },
                 }));
 
@@ -248,6 +249,7 @@ impl DepositionPage {
                     notification: Notification {
                         title: message_title,
                         body: message_body,
+                        notification_type: NotificationType::Error,
                     },
                 }));
             }

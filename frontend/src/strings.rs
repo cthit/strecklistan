@@ -42,3 +42,6 @@ pub const CSV_FEATURE_HEADER: &str = "CSV Hantering";
 pub const CSV_FEATURE_DESCRIPTION: &str = "Importera och exportera inventariedata via CSV-filer för enklare bulkhantering.";
 pub const GENERATE_CSV: &str = "Generera CSV för bulkhantering";
 pub const UPLOAD_CSV: &str = "Ladda upp och hantera CSV-fil";
+pub const CSV_UPLOAD_SUCCESS: &str = "CSV uppladdad";
+pub const CSV_UPLOAD_SUCCESS_BODY: &str = "Inventariedata har uppdaterats från CSV-filen.";
+
