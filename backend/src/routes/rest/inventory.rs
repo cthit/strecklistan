@@ -293,14 +293,11 @@ pub fn generate_csv<'r>(db_pool: &'_ State<DatabasePool>) -> Result<CsvResponse<
         )
     })?;
 
-    Ok(CsvResponse {
-        data,
-        filename: "inventory.csv",
-    })
+    Ok(CsvResponse::new(data, "inventory.csv"))
 }
 
 #[derive(rocket::FromForm)]
-struct CsvUpload<'r> {
+pub struct CsvUpload<'r> {
     file: rocket::fs::TempFile<'r>,
 }
 
@@ -339,18 +336,15 @@ pub async fn update_inventory_from_csv(
         )
     })?;
 
-    let mut csv_string = String::new();
-    csv_data
-        .read_to_string(&mut csv_string)
-        .await
-        .map_err(|_| {
-            SJ::new(
-                Status::InternalServerError,
-                "Failed to parse CSV content".to_string(),
-            )
-        })?;
+    let mut csv_bytes = Vec::new();
+    csv_data.read_to_end(&mut csv_bytes).await.map_err(|_| {
+        SJ::new(
+            Status::InternalServerError,
+            "Failed to read file".to_string(),
+        )
+    })?;
 
-    let mut rdr = csv::Reader::from_reader(csv_string.as_bytes());
+    let mut rdr = csv::Reader::from_reader(csv_bytes.as_slice());
     let headers = rdr
         .headers()
         .map_err(|_| SJ::new(Status::BadRequest, "Invalid CSV format".to_string()))?;
@@ -414,70 +408,72 @@ pub async fn update_inventory_from_csv(
             }
         }
 
-        // Create a single transaction for all stock adjustments if there are any
         if !stock_adjustments.is_empty() {
             // Split adjustments into positive and negative changes
-            let (positive_adjustments, negative_adjustments): (Vec<_>, Vec<_>) =
-                stock_adjustments.into_iter()
-                    .partition(|(_, _, _, change)| *change > 0);
+            let (positive_adjustments, negative_adjustments): (Vec<_>, Vec<_>) = stock_adjustments
+                .into_iter()
+                .partition(|(_, _, _, change)| *change > 0);
 
             // Helper function to create a transaction with bundles
-            let create_transaction = |connection: &mut PgConnection,
-                                     adjustments: Vec<(InventoryItemId, String, Option<i32>, i32)>,
-                                     debited: i32,
-                                     credited: i32,
-                                     description: &str| -> Result<(), SJ> {
-                if adjustments.is_empty() {
-                    return Ok(());
-                }
+            let create_transaction =
+                |connection: &mut PgConnection,
+                 adjustments: Vec<(InventoryItemId, String, Option<i32>, i32)>,
+                 debited: i32,
+                 credited: i32,
+                 description: &str|
+                 -> Result<(), SJ> {
+                    if adjustments.is_empty() {
+                        return Ok(());
+                    }
 
-                let total_amount: i32 = adjustments.iter()
-                    .filter_map(|(_, _, price, stock_change)| {
-                        price.map(|p| p * stock_change.abs())
-                    })
-                    .sum();
+                    let total_amount: i32 = adjustments
+                        .iter()
+                        .filter_map(|(_, _, price, stock_change)| {
+                            price.map(|p| p * stock_change.abs())
+                        })
+                        .sum();
 
-                let transaction_id = {
-                    use crate::schema::tables::transactions::dsl as trans_dsl;
-                    diesel::insert_into(trans_dsl::transactions)
-                        .values((
-                            trans_dsl::description.eq(Some(description.to_string())),
-                            trans_dsl::debited_account.eq(debited),
-                            trans_dsl::credited_account.eq(credited),
-                            trans_dsl::amount.eq(total_amount),
-                        ))
-                        .returning(trans_dsl::id)
-                        .get_result::<TransactionId>(connection)?
-                };
-
-                // Create bundles for each item adjustment
-                for (item_id, name, price, stock_change) in adjustments {
-                    let bundle_id = {
-                        use crate::schema::tables::transaction_bundles::dsl as bundle_dsl;
-                        diesel::insert_into(bundle_dsl::transaction_bundles)
+                    let transaction_id = {
+                        use crate::schema::tables::transactions::dsl as trans_dsl;
+                        diesel::insert_into(trans_dsl::transactions)
                             .values((
-                                bundle_dsl::transaction_id.eq(transaction_id),
-                                bundle_dsl::description.eq(Some(name)),
-                                bundle_dsl::price.eq(price),
-                                bundle_dsl::change.eq(stock_change),
+                                trans_dsl::description.eq(Some(description.to_string())),
+                                trans_dsl::debited_account.eq(debited),
+                                trans_dsl::credited_account.eq(credited),
+                                trans_dsl::amount.eq(total_amount),
                             ))
-                            .returning(bundle_dsl::id)
-                            .get_result::<i32>(connection)?
+                            .returning(trans_dsl::id)
+                            .get_result::<TransactionId>(connection)?
                     };
 
-                    {
-                        use crate::schema::tables::transaction_items::dsl as item_dsl;
-                        diesel::insert_into(item_dsl::transaction_items)
-                            .values((
-                                item_dsl::bundle_id.eq(bundle_id),
-                                item_dsl::item_id.eq(item_id),
-                            ))
-                            .execute(connection)?;
-                    }
-                }
+                    // Create bundles for each item adjustment
+                    for (item_id, name, price, stock_change) in adjustments {
+                        let bundle_id = {
+                            use crate::schema::tables::transaction_bundles::dsl as bundle_dsl;
+                            diesel::insert_into(bundle_dsl::transaction_bundles)
+                                .values((
+                                    bundle_dsl::transaction_id.eq(transaction_id),
+                                    bundle_dsl::description.eq(Some(name)),
+                                    bundle_dsl::price.eq(price),
+                                    bundle_dsl::change.eq(stock_change),
+                                ))
+                                .returning(bundle_dsl::id)
+                                .get_result::<i32>(connection)?
+                        };
 
-                Ok(())
-            };
+                        {
+                            use crate::schema::tables::transaction_items::dsl as item_dsl;
+                            diesel::insert_into(item_dsl::transaction_items)
+                                .values((
+                                    item_dsl::bundle_id.eq(bundle_id),
+                                    item_dsl::item_id.eq(item_id),
+                                ))
+                                .execute(connection)?;
+                        }
+                    }
+
+                    Ok(())
+                };
 
             // Create transaction for positive changes
             create_transaction(
@@ -485,12 +481,13 @@ pub async fn update_inventory_from_csv(
                 positive_adjustments,
                 expense_account,
                 asset_account,
-                &config.csv_import_transaction_description
+                &config.csv_import_transaction_description,
             )?;
 
             // Create transaction for negative changes
             // Use separate description if provided, otherwise use the same as increases
-            let decrease_description = config.csv_import_transaction_description_decrease
+            let decrease_description = config
+                .csv_import_transaction_description_decrease
                 .as_ref()
                 .unwrap_or(&config.csv_import_transaction_description);
 
@@ -499,7 +496,7 @@ pub async fn update_inventory_from_csv(
                 negative_adjustments,
                 asset_account,
                 expense_account,
-                decrease_description
+                decrease_description,
             )?;
         }
 

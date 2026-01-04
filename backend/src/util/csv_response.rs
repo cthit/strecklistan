@@ -3,8 +3,14 @@ use rocket::{Request, Response};
 use rocket::response::Responder;
 
 pub struct CsvResponse<'a> {
-    pub data: Vec<u8>,
-    pub filename: &'a str,
+    data: Vec<u8>,
+    filename: &'a str,
+}
+
+impl <'a> CsvResponse<'a> {
+    pub fn new(data: Vec<u8>, filename: &'a str) -> Self {
+        CsvResponse { data, filename }
+    }
 }
 
 impl<'r, 'a> Responder<'r, 'static> for CsvResponse<'a> {
