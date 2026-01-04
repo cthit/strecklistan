@@ -41,11 +41,13 @@ pub enum InventoryMsg {
     BundleInput(Field, InventoryBundleId, ParsedInputMsg),
     ItemInput(Field, InventoryItemId, ParsedInputMsg),
     UploadCsv(web_sys::File),
+    SetShowSidePanel(bool),
 }
 
 pub struct InventoryPage {
     bundle_rows: BTreeMap<InventoryBundleId, Row<InventoryBundle>>,
     item_rows: BTreeMap<InventoryItemId, Row<InventoryItem>>,
+    show_side_panel: bool,
 }
 
 #[derive(Resources)]
@@ -81,6 +83,7 @@ impl InventoryPage {
         let mut p = InventoryPage {
             item_rows: Default::default(),
             bundle_rows: Default::default(),
+            show_side_panel: false,
         };
         if let Ok(state) = Res::acquire(rs, orders) {
             p.rebuild_data(&state);
@@ -332,6 +335,9 @@ impl InventoryPage {
                     }
                 });
             }
+            InventoryMsg::SetShowSidePanel(show_side_panel) => {
+                self.show_side_panel = show_side_panel;
+            }
         }
 
         Ok(())
@@ -466,13 +472,6 @@ impl InventoryPage {
             ]]
         };
 
-        let wide_anchor = |class: &str, label: &str, href: &str, download: &str| {
-            tr![td![
-                table_wide(),
-                a![C![C.wide_button, class], attrs!{At::Href => href, At::Download => download}, label],
-            ]]
-        };
-
         let header = || {
             tr![
                 th![],
@@ -486,21 +485,29 @@ impl InventoryPage {
 
         div![
             C![C.inventory_page],
-            table![
-                td![table_wide(), h1![strings::INVENTORY_BUNDLES]],
-                header(),
-                self.bundle_rows.iter().map(bundle_row),
-                wide_button("wide_button", strings::NEW_BUNDLE, InventoryMsg::NewBundle),
-                td![table_wide(), h1![strings::INVENTORY_ITEMS]],
-                header(),
-                self.item_rows.iter().map(item_row),
-                wide_button("wide_button", strings::NEW_ITEM, InventoryMsg::NewItem),
-                wide_anchor("wide_button_blue", strings::GENERATE_CSV, "/api/inventory/csv", "inventory.csv"),
-                tr![td![
-                    table_wide(),
+            // Side panel for CSV operations
+            div![
+                C![C.left_panel],
+                if self.show_side_panel {
+                    C![C.left_panel_showing]
+                } else {
+                    C![]
+                },
+                div![
+                    C![C.left_panel_entry],
+                    h2![C![C.left_panel_entry_header], strings::CSV_FEATURE_HEADER],
+                    p![strings::CSV_FEATURE_DESCRIPTION],
+                ],
+                div![
+                    C![C.left_panel_entry],
+                    a![
+                        C![C.wide_button, C.wide_button_blue],
+                        attrs!{At::Href => "/api/inventory/csv", At::Download => "inventory.csv"},
+                        strings::GENERATE_CSV,
+                    ],
                     label![
-                        C![C.wide_button, "wide_button_blue"],
-                        "Upload CSV",
+                        C![C.wide_button, C.wide_button_blue, C.space_above],
+                        strings::UPLOAD_CSV,
                         input![
                             attrs!{At::Type => "file", At::Accept => ".csv", At::Style => "display: none;"},
                             ev(Ev::Change, |event: web_sys::Event| {
@@ -520,7 +527,33 @@ impl InventoryPage {
                             })
                         ]
                     ]
-                ]],
+                ],
+            ],
+            // Toggle button for side panel
+            button![
+                C![C.left_panel_button],
+                simple_ev(
+                    Ev::Click,
+                    InventoryMsg::SetShowSidePanel(!self.show_side_panel),
+                ),
+                "⚙"
+            ],
+            // Spacer to prevent content from being hidden behind the side panel
+            div![if self.show_side_panel {
+                C![C.left_panel_sub_spacer]
+            } else {
+                C![C.left_panel_sub_spacer, C.left_panel_sub_spacer_hidden]
+            },],
+            // Main inventory table
+            table![
+                td![table_wide(), h1![strings::INVENTORY_BUNDLES]],
+                header(),
+                self.bundle_rows.iter().map(bundle_row),
+                wide_button("wide_button", strings::NEW_BUNDLE, InventoryMsg::NewBundle),
+                td![table_wide(), h1![strings::INVENTORY_ITEMS]],
+                header(),
+                self.item_rows.iter().map(item_row),
+                wide_button("wide_button", strings::NEW_ITEM, InventoryMsg::NewItem),
             ],
         ]
         .map_msg(Msg::Inventory)

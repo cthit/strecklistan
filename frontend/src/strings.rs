@@ -38,4 +38,7 @@ pub const INVENTORY_BUNDLES: &str = "Paket";
 pub const NEW_ITEM: &str = "Ny vara";
 pub const NEW_BUNDLE: &str = "Nytt paket";
 
+pub const CSV_FEATURE_HEADER: &str = "CSV Hantering";
+pub const CSV_FEATURE_DESCRIPTION: &str = "Importera och exportera inventariedata via CSV-filer för enklare bulkhantering.";
 pub const GENERATE_CSV: &str = "Generera CSV för bulkhantering";
+pub const UPLOAD_CSV: &str = "Ladda upp och hantera CSV-fil";
