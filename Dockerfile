@@ -5,22 +5,11 @@ FROM rust:1.91.1 AS base
 
 # Install build dependencies
 RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
-RUN cargo binstall cargo-make@0.37.24 trunk@0.21.14 strip_cargo_version@0.0.3
+RUN cargo binstall cargo-make@0.37.24 trunk@0.21.14 
 RUN rustup target add wasm32-unknown-unknown
 
 WORKDIR /app
 RUN mkdir frontend backend common
-
-###########################
-### STRIP-VERSION STAGE ###
-###########################
-FROM base AS strip-version
-
-COPY Cargo.lock Cargo.toml ./
-COPY frontend/Cargo.toml ./frontend/
-COPY backend/Cargo.toml ./backend/
-COPY common/Cargo.toml ./common/
-RUN strip_cargo_version
 
 ###################
 ### BUILD STAGE ###
@@ -31,10 +20,10 @@ RUN cargo init --lib frontend
 RUN cargo init --bin backend
 RUN cargo init --lib common
 
-COPY --from=strip-version /app/frontend/Cargo.toml /app/frontend/
-COPY --from=strip-version /app/backend/Cargo.toml /app/backend/
-COPY --from=strip-version /app/common/Cargo.toml /app/common/
-COPY --from=strip-version /app/Cargo.toml /app/Cargo.lock /app/
+COPY Cargo.lock Cargo.toml ./
+COPY frontend/Cargo.toml ./frontend/
+COPY backend/Cargo.toml ./backend/
+COPY common/Cargo.toml ./common/
 
 WORKDIR /app/backend
 RUN cargo build --release
