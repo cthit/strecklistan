@@ -1,13 +1,15 @@
 use crate::database::DatabasePool;
 use crate::models::inventory::{
-    InventoryBundle as InventoryBundleRel, InventoryBundleItem,
+    InventoryBundle as InventoryBundleRel, InventoryBundleItem, InventoryCSVItem,
     NewInventoryBundle as NewInventoryBundleRel, NewInventoryBundleItem,
 };
+use crate::util::CsvResponse;
 use crate::util::ser::{Ser, SerAccept};
 use crate::util::status_json::StatusJson as SJ;
 use chrono::Utc;
 use diesel::prelude::*;
 use itertools::Itertools;
+use rocket::form::Form;
 use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::{State, delete, get, post, put};
@@ -18,6 +20,7 @@ use strecklistan_api::inventory::{
     NewInventoryBundle as NewInventoryBundleObj, NewInventoryItem,
 };
 use strecklistan_api::transaction::TransactionId;
+use tokio::io::AsyncReadExt;
 
 #[get("/inventory/items")]
 pub fn get_items(
@@ -258,6 +261,247 @@ pub fn delete_inventory_bundle(
                 .get_result(connection)?;
             assert_eq!(deleted_id, id);
         }
+
+        Ok(Status::Ok.into())
+    })
+}
+
+#[get("/inventory/csv")]
+pub fn generate_csv<'r>(db_pool: &'_ State<DatabasePool>) -> Result<CsvResponse<'_>, SJ> {
+    let mut connection = db_pool.inner().get()?;
+
+    use crate::schema::views::inventory_stock::dsl::{inventory_stock, name, price, stock};
+    let items: Vec<(String, Option<i32>, i32)> = inventory_stock
+        .select((name, price, stock))
+        .load(&mut connection)?;
+
+    let mut wtr = csv::Writer::from_writer(vec![]);
+    // Convert prices from öre to kronor so that the CSV is nicer to use
+    for (item_name, price_ore, item_stock) in items {
+        let csv_item = InventoryCSVItem::from_db(item_name, price_ore, item_stock);
+        wtr.serialize(csv_item).map_err(|e| {
+            SJ::new(
+                Status::InternalServerError,
+                format!("Failed to serialize CSV: {}", e),
+            )
+        })?;
+    }
+    let data = wtr.into_inner().map_err(|e| {
+        SJ::new(
+            Status::InternalServerError,
+            format!("Failed to finalize CSV: {}", e),
+        )
+    })?;
+
+    Ok(CsvResponse::new(data, "inventory.csv"))
+}
+
+#[derive(rocket::FromForm)]
+pub struct CsvUpload<'r> {
+    file: rocket::fs::TempFile<'r>,
+}
+
+#[put("/inventory/csv/update", data = "<form>")]
+pub async fn update_inventory_from_csv(
+    db_pool: &State<DatabasePool>,
+    config: &State<crate::Opt>,
+    mut form: Form<CsvUpload<'_>>,
+) -> Result<SJ, SJ> {
+    let asset_account = config.csv_import_asset_account.ok_or_else(|| {
+        SJ::new(
+            Status::InternalServerError,
+            "CSV_IMPORT_ASSET_ACCOUNT is not configured".to_string(),
+        )
+    })?;
+
+    let expense_account = config.csv_import_expense_account.ok_or_else(|| {
+        SJ::new(
+            Status::InternalServerError,
+            "CSV_IMPORT_EXPENSE_ACCOUNT is not configured".to_string(),
+        )
+    })?;
+
+    let file = &mut form.file;
+    if !file.content_type().map_or(false, |ct| ct.is_csv()) {
+        return Err(SJ::new(
+            Status::BadRequest,
+            "Invalid file: must be a CSV".to_string(),
+        ));
+    }
+
+    let mut csv_data = file.open().await.map_err(|_| {
+        SJ::new(
+            Status::InternalServerError,
+            "Failed to read file".to_string(),
+        )
+    })?;
+
+    let mut csv_bytes = Vec::new();
+    csv_data.read_to_end(&mut csv_bytes).await.map_err(|_| {
+        SJ::new(
+            Status::InternalServerError,
+            "Failed to read file".to_string(),
+        )
+    })?;
+
+    let mut rdr = csv::Reader::from_reader(csv_bytes.as_slice());
+    let headers = rdr
+        .headers()
+        .map_err(|_| SJ::new(Status::BadRequest, "Invalid CSV format".to_string()))?;
+
+    // I can't figure out how to compare csv::StringRecord with something that is not allocated...
+    // so we allocate a vec here. Consider optimizing later if performance is an issue.
+    if headers != vec!["name", "price", "stock"] {
+        return Err(SJ::new(
+            Status::BadRequest,
+            "Invalid CSV headers: expected 'name,price,stock'".to_string(),
+        ));
+    }
+
+    let items: Vec<InventoryCSVItem> = rdr
+        .deserialize()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| SJ::new(Status::BadRequest, format!("Invalid CSV data: {}", e)))?;
+
+    let mut connection = db_pool.inner().get()?;
+
+    connection.transaction::<_, SJ, _>(|connection| {
+        use crate::schema::tables::inventory::dsl as inv_dsl;
+        use crate::schema::views::inventory_stock::dsl as stock_dsl;
+
+        // Collect all items that need stock adjustments
+        let mut stock_adjustments: Vec<(InventoryItemId, String, Option<i32>, i32)> = Vec::new();
+
+        for csv_item in items {
+            let existing: Option<InventoryItemStock> = stock_dsl::inventory_stock
+                .filter(stock_dsl::name.eq(&csv_item.name))
+                .filter(stock_dsl::deleted_at.is_null())
+                .first(connection)
+                .optional()?;
+
+            // Convert price from kronor to öre for database operations
+            let price_ore = csv_item.price_in_ore();
+
+            let (item_id, current_stock) = if let Some(existing_item) = existing {
+                if price_ore.is_some() && price_ore != existing_item.price {
+                    diesel::update(inv_dsl::inventory)
+                        .filter(inv_dsl::id.eq(existing_item.id))
+                        .set(inv_dsl::price.eq(price_ore))
+                        .execute(connection)?;
+                }
+                (existing_item.id, existing_item.stock)
+            } else {
+                let new_id: InventoryItemId = diesel::insert_into(inv_dsl::inventory)
+                    .values((
+                        inv_dsl::name.eq(&csv_item.name),
+                        inv_dsl::price.eq(price_ore),
+                    ))
+                    .returning(inv_dsl::id)
+                    .get_result(connection)?;
+                (new_id, 0)
+            };
+
+            let stock_change = csv_item.stock - current_stock;
+
+            if stock_change != 0 {
+                stock_adjustments.push((item_id, csv_item.name, price_ore, stock_change));
+            }
+        }
+
+        if !stock_adjustments.is_empty() {
+            // Split adjustments into positive and negative changes
+            let (positive_adjustments, negative_adjustments): (Vec<_>, Vec<_>) = stock_adjustments
+                .into_iter()
+                .partition(|(_, _, _, change)| *change > 0);
+
+            // Helper function to create a transaction with bundles
+            let create_transaction =
+                |connection: &mut PgConnection,
+                 adjustments: Vec<(InventoryItemId, String, Option<i32>, i32)>,
+                 debited: i32,
+                 credited: i32,
+                 description: &str|
+                 -> Result<(), SJ> {
+                    if adjustments.is_empty() {
+                        return Ok(());
+                    }
+
+                    let total_amount: i32 = adjustments
+                        .iter()
+                        .filter_map(|(_, _, price, stock_change)| {
+                            price.map(|p| p * stock_change.abs())
+                        })
+                        .sum();
+
+                    let transaction_id = {
+                        use crate::schema::tables::transactions::dsl as trans_dsl;
+                        diesel::insert_into(trans_dsl::transactions)
+                            .values((
+                                trans_dsl::description.eq(Some(description.to_string())),
+                                trans_dsl::debited_account.eq(debited),
+                                trans_dsl::credited_account.eq(credited),
+                                trans_dsl::amount.eq(total_amount),
+                            ))
+                            .returning(trans_dsl::id)
+                            .get_result::<TransactionId>(connection)?
+                    };
+
+                    // Create bundles for each item adjustment
+                    for (item_id, name, price, stock_change) in adjustments {
+                        let bundle_id = {
+                            use crate::schema::tables::transaction_bundles::dsl as bundle_dsl;
+                            diesel::insert_into(bundle_dsl::transaction_bundles)
+                                .values((
+                                    bundle_dsl::transaction_id.eq(transaction_id),
+                                    bundle_dsl::description.eq(Some(name)),
+                                    bundle_dsl::price.eq(price),
+                                    bundle_dsl::change.eq(stock_change),
+                                ))
+                                .returning(bundle_dsl::id)
+                                .get_result::<i32>(connection)?
+                        };
+
+                        {
+                            use crate::schema::tables::transaction_items::dsl as item_dsl;
+                            diesel::insert_into(item_dsl::transaction_items)
+                                .values((
+                                    item_dsl::bundle_id.eq(bundle_id),
+                                    item_dsl::item_id.eq(item_id),
+                                ))
+                                .execute(connection)?;
+                        }
+                    }
+
+                    Ok(())
+                };
+
+            // Create transaction for positive changes
+            create_transaction(
+                connection,
+                positive_adjustments,
+                expense_account,
+                asset_account,
+                &config.csv_import_transaction_description,
+            )?;
+
+            // Create transaction for negative changes
+            // Use separate description if provided, otherwise use the same as increases
+            let decrease_description = config
+                .csv_import_transaction_description_decrease
+                .as_ref()
+                .unwrap_or(&config.csv_import_transaction_description);
+
+            create_transaction(
+                connection,
+                negative_adjustments,
+                asset_account,
+                expense_account,
+                decrease_description,
+            )?;
+        }
+
+        // Refresh the materialized view to update stock counts and price
+        diesel::sql_query("REFRESH MATERIALIZED VIEW inventory_stock").execute(connection)?;
 
         Ok(Status::Ok.into())
     })

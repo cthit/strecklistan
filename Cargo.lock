@@ -2196,6 +2196,7 @@ version = "0.14.0"
 dependencies = [
  "chrono",
  "clap",
+ "csv",
  "diesel",
  "diesel-derive-enum",
  "diesel_migrations",

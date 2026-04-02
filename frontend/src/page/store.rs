@@ -3,7 +3,7 @@ use crate::components::checkout::{Checkout, CheckoutMsg};
 use crate::components::izettle_pay::{IZettlePay, IZettlePayErr, IZettlePayMsg};
 use crate::fuzzy_search::{FuzzyScore, FuzzySearch};
 use crate::generated::css_classes::C;
-use crate::notification_manager::{Notification, NotificationMessage};
+use crate::notification_manager::{Notification, NotificationMessage, NotificationType};
 use crate::page::loading::Loading;
 use crate::strings;
 use crate::util::{compare_fuzzy, simple_ev};
@@ -281,6 +281,7 @@ impl StorePage {
                     notification: Notification {
                         title: message_title,
                         body: message_body,
+                        notification_type: NotificationType::Error,
                     },
                 }));
             }
@@ -314,6 +315,7 @@ impl StorePage {
                                     "Total: {}:-",
                                     self.checkout.transaction_amount(),
                                 )),
+                                notification_type: NotificationType::Success,
                             },
                         }));
                         self.checkout = Checkout::new(

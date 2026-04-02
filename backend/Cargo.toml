@@ -36,8 +36,10 @@ strum = "0.20"
 strum_macros = "0.20"
 either = "1"
 clap = { version = "3.0.0-beta.4", features = ["derive", "env"] }
+csv = "1.4.0"
 
 
 [dependencies.strecklistan_api]
 path = "../common"
 features = ["diesel_impl"]
+
